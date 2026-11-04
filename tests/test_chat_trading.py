@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from src.engine import Engine, dump
 from src.identity import Identity
-from src.tools import console, list_instances, select_instance
+from src.tools._shared import console, list_instances, select_instance
 from src.trading import lock_for
 
 

@@ -91,3 +91,11 @@
 - 当前环境重跑 `python -m unittest discover -s tests -v`：106项全部通过。
 - 测试清理：test_ownership 明确拒绝 account 类型和未知字段；runtime_check 校验随机绑定不泄露ID列表；smoke_view 校验绑定下拉仅 UMO/QQ/随机ID。
 - runtime_check.py 与 smoke_view.py 依赖 AstrBot/Playwright，当前环境未安装，本次未重跑；docs/screenshots 为改版后代码于本机浏览器生成的记录。
+
+
+## 工具拆分与统一注册验证
+
+- 每个 kurumi 工具独立成 `src/tools/<tool>.py`，`src/tool_register.py` 统一构建并注册；`main.py` 不再声明 `@filter.llm_tool`。
+- 108项单元测试通过，新增注册表结构、工具名唯一性和 JSON Schema 校验。
+- 在临时虚拟环境安装 AstrBot 4.29.4 后运行 `tests/runtime_check.py`：两种构造方式、12 个工具注册、7 个 Web 路由、鉴权与生命周期全部通过。
+- 直接调用 `FunctionTool.handler` 验证 `kurumi_watch_market`、`kurumi_forex`、`kurumi_my_instances` 均返回 `ok: true`。

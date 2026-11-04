@@ -7,7 +7,7 @@ import unittest
 from types import SimpleNamespace
 
 from src.engine import Engine
-from src.tools import console, read_logs
+from src.tools._shared import console, read_logs
 from src.identity import Identity
 
 

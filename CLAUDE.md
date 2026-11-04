@@ -28,7 +28,7 @@ There is no build step, package metadata, or `pyproject.toml`. `_conf_schema.jso
 ## Architecture
 
 ### Entry and lifecycle
-- `main.py` is the thin AstrBot `Star` subclass: declares every `@filter.llm_tool` and `@filter.on_llm_request`, then delegates to `src/` (`console`, `read_logs`, `list_instances`, `select_instance`).
+- `main.py` is the thin AstrBot `Star` subclass: composes `KurumiMixin`, calls `register_tools()` from `src/tool_register.py` in `__init__`, and declares the `@filter.on_llm_request` system-prompt hook.
 - `src/plugin.py` (`KurumiMixin`) owns the lifecycle and the authenticated View API. `__init__` opens the DB and registers routes at `/{plugin_name}/{state,alerts,history,command,settings,connection-test,decision}`. Every handler fails closed on `request.username` (Dashboard login).
 - A single background `loop()` runs every 10 s: refresh quotes → record candles for all six pairs → `engine.tick()` each game → launch scheduled AI decisions when `auto` is due. Tasks spawned via `spawn()` so `terminate()` can cancel them.
 
@@ -52,7 +52,7 @@ There is no build step, package metadata, or `pyproject.toml`. `_conf_schema.jso
 
 ### Two AI execution paths
 Both go through `src/trading.py:execute()` — the single write gate with `WRITE_ACTIONS`, mandatory `reason`, and a per-instance `asyncio.Lock`:
-1. **Chat tools** (`src/tools.py`): resolve the caller's game via `src/identity.py`, then execute.
+1. **Chat tools** (`src/tools/<tool>.py`, one module per tool): `src/tool_register.py` builds every `FunctionTool` and installs it with `context.add_llm_tools()`; `src/tools/_shared.py` resolves the caller's game via `src/identity.py` and executes.
 2. **Background decisions** (`src/ai.py`): `decide()` builds a `ToolSet`, runs `context.tool_loop_agent` with a `SilentEvent` (send is forbidden) and `max_steps=12`. It snapshots `action_revision` and rejects writes if the account changed under the model. The persona prompt is combined with `RULES`; the result summary is logged, not sent to chat.
 
 `public_snapshot()` strips `user_binding` and restricts quotes to the six pairs before anything reaches the model or UI.

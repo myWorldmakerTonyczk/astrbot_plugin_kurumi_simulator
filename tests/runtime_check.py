@@ -25,16 +25,35 @@ engine_module = sys.modules[spec.name + ".src.engine"]
 market_module = sys.modules[spec.name + ".src.market"]
 temporary = TemporaryDirectory()
 routes = []
+registered_tools = []
 context = SimpleNamespace(
     get_all_providers=lambda: [],
     persona_manager=SimpleNamespace(personas=[]),
     register_web_api=lambda *args: routes.append(args),
+    add_llm_tools=lambda *tools: registered_tools.extend(tools),
 )
+EXPECTED_TOOLS = {
+    "kurumi_forex",
+    "kurumi_watch_market",
+    "kurumi_read_journal",
+    "kurumi_open_position",
+    "kurumi_close_position",
+    "kurumi_set_protection",
+    "kurumi_write_memory",
+    "kurumi_virtual_loan",
+    "kurumi_my_instances",
+    "kurumi_select_instance",
+    "kurumi_write_plan",
+    "kurumi_price_history",
+}
 with patch.object(StarTools, "get_data_dir", return_value=Path(temporary.name)):
     # Exercise both constructor signatures used by AstrBot loaders.
     plugin = module.KurumiSimulator(context)
+    assert len(registered_tools) == 12
+    assert {tool.name for tool in registered_tools} == EXPECTED_TOOLS
     explicit = module.KurumiSimulator(context, {})
     assert len(routes) == 14
+    assert len(registered_tools) == 24
     explicit.engine.db.close()
 
 
@@ -191,7 +210,7 @@ async def check():
     await plugin.terminate()
     temporary.cleanup()
     print(
-        "AstrBot runtime check passed: real constructors (context-only and config), lifecycle, real request context, anonymous rejection, authenticated state, secret omission, probe isolation, held-position source switching guard, stale decision invalidation."
+        "AstrBot runtime check passed: real constructors (context-only and config), 12 registered tools, lifecycle, real request context, anonymous rejection, authenticated state, secret omission, probe isolation, held-position source switching guard, stale decision invalidation."
     )
 
 

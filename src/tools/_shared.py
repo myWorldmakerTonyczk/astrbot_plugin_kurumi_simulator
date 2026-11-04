@@ -1,8 +1,29 @@
-"""Chat tool entry points: bearer IDs never become trading context."""
+"""Shared resolution and execution helpers for chat-facing tools."""
 
 import json
-from .engine import dump
-from .trading import execute
+
+from ..engine import dump
+from ..trading import execute
+
+USER_ID = "随机ID方式每次调用必填管理员提供的完整ID；QQ/UMO绑定可留空。不得猜测或回显ID。"
+
+
+def build_tool(name, description, parameters, handler):
+    """Create an AstrBot FunctionTool tied to the module that defines it.
+
+    AstrBot derives plugin ownership from ``tool.__module__``. The handler is
+    defined in a tool module, so subclassing with that module keeps the tool
+    attached to this plugin instead of ``astrbot.core.agent.tool``.
+    """
+    from astrbot.core.agent.tool import FunctionTool
+
+    tool_cls = type("KurumiTool", (FunctionTool,), {"__module__": handler.__module__})
+    return tool_cls(
+        name=name,
+        description=description,
+        parameters=parameters,
+        handler=handler,
+    )
 
 
 def bound_game(plugin, event, user_id=""):
