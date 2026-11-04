@@ -2,14 +2,12 @@
 
 import asyncio
 import json
-import logging
+from astrbot.api import logger
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from .settings import settings, bounds, due_before
 from .store import DiaryStore
-
-logger = logging.getLogger(__name__)
 
 
 class DiaryService:

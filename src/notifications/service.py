@@ -2,15 +2,13 @@
 
 import asyncio
 import json
-import logging
+from astrbot.api import logger
 import time
 from types import SimpleNamespace
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from ..diary.store import redact
 from .settings import config, quiet, delivery_time
-
-logger = logging.getLogger(__name__)
 
 
 class NotificationService:

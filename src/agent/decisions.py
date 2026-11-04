@@ -2,14 +2,12 @@
 
 import asyncio
 import json
-import logging
+from astrbot.api import logger
 import time
 from ..core.engine import dump
 from ..users.policy import effective
 from ..diary.store import redact
 from .decision_settings import settings
-
-logger = logging.getLogger(__name__)
 
 
 class DecisionService:
