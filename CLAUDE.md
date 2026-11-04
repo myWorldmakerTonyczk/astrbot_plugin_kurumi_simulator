@@ -58,7 +58,7 @@ Both go through `src/trading.py:execute()` — the single write gate with `WRITE
 `public_snapshot()` strips `user_binding` and restricts quotes to the six pairs before anything reaches the model or UI.
 
 ### Identity and ownership (`src/identity.py`, `src/ownership.py`)
-- Users are bound by QQ, full private-chat UMO (`<platform>:FriendMessage:<id>`), or an admin-issued random ID (`krm_` + 20 hex). Bindings normalize to `sim_user_aliases`; the token is a bearer ID stored hashed-by-lookup in `sim_user_tokens` (rotatable).
+- Users are bound by QQ, full private-chat UMO (`<platform>:FriendMessage:<id>`), or an admin-issued random ID (`krm_` + 20 hex). Bindings normalize to `sim_user_aliases`; the random ID is a bearer token stored in `sim_user_tokens` and can be rotated, which invalidates the old ID.
 - Only private chats are allowed for trading tools. Selection is scoped per `umo + sender`; `sim_reference_grants` records which sessions may supply chat history to background decisions.
 - Deleted instances get a tombstone in `sim_deleted_instances`; `Engine.save()` refuses to write them back.
 

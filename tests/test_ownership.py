@@ -53,7 +53,8 @@ class OwnershipTests(unittest.TestCase):
             dict(type="umo", values=["a:GroupMessage:12345"]),
             dict(type="umo", values=["bad"]),
             dict(type="umo", values=[]),
-            dict(type="account", values=["abc"], password="short"),
+            dict(type="account", values=["abc"]),
+            dict(type="qq", values=["123456"], password="short"),
         ]:
             with self.assertRaises(ValueError):
                 normalize(binding)

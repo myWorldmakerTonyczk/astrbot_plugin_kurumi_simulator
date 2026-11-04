@@ -161,7 +161,7 @@ async def check():
     assert response.status_code == 200
     owned = json.loads(response.body)
     assert owned["owner_name"] == "用户1"
-    assert "only-test-password" not in response.body.decode()
+    assert owned["user_binding"] == {"type": "random", "values": []}
     denied = await post(
         plugin.web_command, {"action": "delete", "game": owned["id"]}, None
     )

@@ -261,7 +261,12 @@ with sync_playwright() as p:
         page.evaluate("window.lastRequest.body.options.user_binding.values[0]")
         == "default:FriendMessage:123456789"
     )
-    assert page.locator("#bound-password").count() == 0
+    assert (
+        page.evaluate(
+            "[...document.querySelectorAll('#user-binding-type option')].map(o=>o.value)"
+        )
+        == ["umo", "qq", "random"]
+    )
 
     page.wait_for_selector("[data-page=overview]:not([hidden])")
     assert page.locator("#create-instance-dialog").is_hidden()
@@ -290,7 +295,6 @@ with sync_playwright() as p:
             )
         page.wait_for_selector("#create-instance-dialog:not([open])", state="attached")
         page.wait_for_selector("#desk:not([hidden])")
-    assert page.locator("#bound-password").count() == 0
     page.locator("#open-instance-settings").click()
     page.wait_for_selector("#instance-settings-dialog[open]")
     page.screenshot(path=str(out / "instance-settings-dialog.png"), full_page=True)
