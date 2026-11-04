@@ -1,14 +1,16 @@
 import unittest
 
-from src.tool_register import TOOL_MODULES
+from src.tools.registry import TOOL_MODULES
 
 EXPECTED_TOOLS = [
     "kurumi_forex",
     "kurumi_watch_market",
     "kurumi_read_journal",
+    "kurumi_read_diary",
     "kurumi_open_position",
     "kurumi_close_position",
     "kurumi_set_protection",
+    "kurumi_set_notifications",
     "kurumi_write_memory",
     "kurumi_virtual_loan",
     "kurumi_my_instances",

@@ -1,7 +1,7 @@
 import time
 import unittest
-from src.engine import Engine
-from src.alerts import notices
+from src.core.engine import Engine
+from src.core.alerts import notices
 
 
 class AlertTests(unittest.TestCase):

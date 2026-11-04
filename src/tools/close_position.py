@@ -1,6 +1,6 @@
 """kurumi_close_position: settle one virtual position."""
 
-from ..engine import dump
+from ..core.engine import dump
 from ._shared import USER_ID, build_tool, console
 
 NAME = "kurumi_close_position"

@@ -4,6 +4,7 @@ import re
 import secrets
 import time
 import uuid
+from . import policy
 
 TOKEN_PATTERN = re.compile(r"krm_[0-9a-f]{20}")
 
@@ -33,6 +34,7 @@ def initialize(db):
     INSERT OR IGNORE INTO sim_counters VALUES('user',0);
     CREATE TABLE IF NOT EXISTS sim_deleted_instances(id TEXT PRIMARY KEY,deleted REAL NOT NULL);
     """)
+    policy.initialize(db)
     for row in db.execute(
         "SELECT id FROM sim_users WHERE id NOT IN (SELECT user_id FROM sim_user_tokens)"
     ).fetchall():
@@ -137,9 +139,33 @@ def resolve(db, binding, nickname=""):
 
 
 def users(db):
-    return [
-        dict(id=row[0], name=row[1], public_id=row[2])
-        for row in db.execute(
-            "SELECT u.id,u.nickname,t.token FROM sim_users u JOIN sim_user_tokens t ON t.user_id=u.id ORDER BY ordinal"
+    people = []
+    for row in db.execute(
+        "SELECT u.id,u.nickname,t.token FROM sim_users u JOIN sim_user_tokens t ON t.user_id=u.id ORDER BY ordinal"
+    ):
+        aliases = [
+            dict(type=r[0].split(":", 1)[0], value=r[0].split(":", 1)[1])
+            for r in db.execute(
+                "SELECT alias FROM sim_user_aliases WHERE user_id=? ORDER BY alias",
+                (row[0],),
+            )
+        ]
+        instances = [
+            dict(id=r[0], name=r[1], reference_umo=r[2] or "")
+            for r in db.execute(
+                "SELECT id,json_extract(data,'$.name'),json_extract(data,'$.reference_umo') FROM games WHERE json_extract(data,'$.owner_id')=?",
+                (row[0],),
+            )
+        ]
+        people.append(
+            dict(
+                id=row[0],
+                name=row[1],
+                public_id=row[2],
+                bindings=aliases,
+                instances=instances,
+                policy=policy.for_user(db, row[0]),
+                notifications=policy.notice_defaults(db, row[0]),
+            )
         )
-    ]
+    return people

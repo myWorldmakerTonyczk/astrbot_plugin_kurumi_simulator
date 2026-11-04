@@ -2,8 +2,8 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from src.engine import Engine
-from src.ownership import normalize
+from src.core.engine import Engine
+from src.users.ownership import normalize
 
 
 class OwnershipTests(unittest.TestCase):

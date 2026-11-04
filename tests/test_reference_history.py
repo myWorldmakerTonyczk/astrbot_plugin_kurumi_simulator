@@ -1,9 +1,9 @@
 import json
 import unittest
 from unittest.mock import AsyncMock
-from src.engine import Engine
-from src.market import Market
-from src.history import History, identity
+from src.core.engine import Engine
+from src.market_data.market import Market
+from src.market_data.history import History, identity
 
 
 class ReferenceTests(unittest.IsolatedAsyncioTestCase):

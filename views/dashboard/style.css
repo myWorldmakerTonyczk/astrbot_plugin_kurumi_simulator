@@ -1695,3 +1695,24 @@ main {
 .managed-user button {
   white-space: nowrap;
 }
+
+.diary-entry { border-top: 1px solid var(--border, #eadde5); padding: 14px 0; }
+.diary-entry summary { cursor: pointer; font-weight: 600; }
+.diary-entry pre { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.85; }
+
+.settings-pages { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 24px; }
+.settings-pages .selected { background:#eadbea; color:#873d73; border-color:#c99fbd; }
+#managed-users { display:grid; gap:16px; margin-top:24px; }
+details.managed-user { display:block; padding:18px; border:1px solid #e5d4e2; border-radius:14px; }
+.managed-user>summary { cursor:pointer; display:flex; justify-content:space-between; gap:12px; }
+.managed-user form { margin-top:18px; }
+.managed-user details { margin:14px 0; }
+.managed-user details>summary { cursor:pointer; color:#93527c; }
+.user-identity { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:14px 0; }
+.user-bindings code,.user-identity code { overflow-wrap:anywhere; word-break:break-word; }
+.notice-switches { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 16px; margin:16px 0; }
+[data-settings-page]>.panel { margin-bottom:24px; }
+#instance-notice-fields { margin-bottom:16px; }
+@media(max-width:640px){.notice-switches{grid-template-columns:1fr}.managed-user>summary{flex-wrap:wrap}}
+
+.required-indicator{color:#d72f4c;font-size:.9em;margin-left:4px;font-weight:600}.required-indicator[hidden]{display:none!important}

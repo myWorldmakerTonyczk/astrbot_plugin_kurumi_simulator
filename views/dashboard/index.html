@@ -25,8 +25,9 @@
           ><button data-tab="memory">计划与经验</button>
         </nav>
         <nav id="settings-nav" aria-label="设置导航" hidden>
-          <button data-settings-anchor="connection">API与行情连接</button
-          ><button data-settings-anchor="access-scaffold">用户与权限</button>
+          <button data-settings-anchor="users">用户与权限</button>
+          <button data-settings-anchor="api">API与行情连接</button>
+          <button data-settings-anchor="diary">每日日记</button>
         </nav>
         <div class="aside-note">
           真实行情<br />虚拟资金<br /><strong>让她自己试试看。</strong>
@@ -116,10 +117,11 @@
             <div class="account-top">
               <span id="game-status"></span>
               <div>
-                <button id="pause">暂停自主操作</button
-                ><button id="decide" class="primary">让她看一次盘</button>
+                <button id="decide" class="primary">让她看一次盘</button>
               </div>
             </div>
+            <p id="decision-progress" role="status" class="caption"></p>
+            <details id="decision-result" class="panel" hidden><summary>最近一次看盘结果</summary><pre id="decision-summary"></pre></details>
             <div class="metrics" id="metrics"></div>
             <div class="trading-grid">
               <div class="watch-column">
@@ -421,7 +423,10 @@
             <section class="panel">
               <h3>她的经验笔记</h3>
               <p>是她自己的总结，不代表已经验证的盈利规律。</p>
-              <pre id="notes">尚无经验笔记</pre>
+              <details><summary>旧版经验笔记</summary><pre id="notes">尚无经验笔记</pre></details>
+              <div class="connection-actions"><button type="button" id="diary-refresh">刷新日记</button>
+                <button type="button" id="diary-older" hidden>更早的日记</button></div>
+              <p id="diary-status" role="status"></p><div id="diary-entries"></div>
             </section>
           </div>
           <section class="panel global-experience-placeholder">
@@ -440,59 +445,60 @@
           </section>
         </section>
         <section data-page="setup" hidden>
-          <div class="section-head settings-heading">
-            <div>
-              <h2>设置</h2>
-              <p>
-                这里管理全局
-                API、行情连接与用户权限。每局游戏规则在新建实例时设置。
-              </p>
-            </div>
-            <span class="preview-badge">权限界面预览</span>
+          <div class="section-head settings-heading"><div><h2>设置</h2>
+            <p>分别管理用户权限、API连接和每日日记。每局游戏规则在新建实例时设置。</p></div></div>
+          <nav class="settings-pages" aria-label="设置分页">
+            <button type="button" data-settings-tab="users">用户与权限</button>
+            <button type="button" data-settings-tab="api">API与行情连接</button>
+            <button type="button" data-settings-tab="diary">每日日记</button>
+          </nav>
+          <div data-settings-page="users">
+            <section class="panel" id="access-scaffold">
+              <h3>虚拟用户与实例权限</h3>
+              <p>用户可通过随机ID、QQ号或完整会话UMO识别。这里统一管理昵称、绑定信息、看盘间隔和主动汇报权限。</p>
+              <p class="caption">此页由AstrBot控制台管理员管理；聊天工具按用户归属隔离。展开用户卡片查看全部绑定和设置。</p>
+              <div class="form-grid"><label>用户昵称（选填）<input id="new-user-nickname" maxlength="40" placeholder="留空递增命名"></label>
+                <button type="button" id="generate-user-id">生成虚拟用户ID</button></div>
+              <p class="caption">ID由管理员生成和刷新，旧ID立即失效，实例与交易数据不变。随机ID方式在每次工具调用的user_id参数中携带。</p>
+              <div id="managed-users"></div>
+            </section>
           </div>
-          <section class="panel access-scaffold" id="access-scaffold">
-            <h3>用户与实例权限</h3>
-            <p>
-              新建实例已支持用户绑定；实例数量上限和访问权限入口仍待接入。目前仍通过
-              AstrBot 控制台登录访问，尚未启用多用户权限隔离。
-            </p>
-            <div class="form-grid">
-              <label
-                >用户管理<button type="button" disabled>
-                  添加用户（待接入）
-                </button></label
-              ><label
-                >每位用户的实例数量上限<input
-                  type="number"
-                  disabled
-                  placeholder="后续在此设置"
-              /></label>
-            </div>
-            <p class="caption">
-              已有交易数据暂列为“未分配用户”，不会自动认定数据所有者。
-            </p>
-          </section>
-          <section class="panel">
-            <h3>虚拟用户与随机ID</h3>
-            <p class="caption">
-              ID由管理员生成和刷新。刷新后旧ID立即失效，实例与交易数据不变。用户交给LLM，在每次工具调用的user_id参数携带。
-            </p>
-            <div class="form-grid">
-              <label
-                >用户昵称（选填）<input
-                  id="new-user-nickname"
-                  maxlength="40"
-                  placeholder="留空递增命名" /></label
-              ><button type="button" id="generate-user-id">
-                生成虚拟用户ID
-              </button>
-            </div>
-            <div id="managed-users"></div>
-          </section>
-
-          <div class="global-settings-grid">
-            <div>
-              <section class="panel connection-panel">
+          <div data-settings-page="api" hidden>
+            <section class="panel">
+              <h3>LLM调用接口</h3><p>后台自主看盘和日记共用此连接。普通聊天仍使用AstrBot原有会话模型。</p>
+              <form id="llm-settings">
+                <label>调用方式<select name="mode"><option value="platform">平台已配置的模型（默认）</option><option value="custom">自定义OpenAI兼容接口</option></select></label>
+                <label data-llm-mode="platform">平台模型<select name="provider_id"></select></label>
+                <div data-llm-mode="custom" hidden>
+                  <label>兼容接口Base URL<input name="api_base" type="url" placeholder="https://example.com/v1"></label>
+                  <label>模型名<input name="model" placeholder="填写接口提供的准确模型名"></label>
+                  <label>API Key<input name="api_key" type="password" autocomplete="new-password"></label>
+                  <label>自定义请求头（可选JSON）<textarea name="headers" rows="3"></textarea></label>
+                  <label>单次请求超时（秒）<input name="timeout" type="number" min="10" max="180" value="120"></label>
+                  <p class="caption">接口须支持Chat Completions与工具调用。密钥和请求头仅保存在服务器，不向模型或页面回显；空白保留已存值。</p>
+                </div>
+                <label class="check"><input name="debug_prompt" type="checkbox">在控制台输出完整LLM提示词（调试）</label>
+                <p class="caption">默认关闭；开启后输出看盘和日记的系统提示词、上下文与任务正文，插件不截断。不输出接口密钥和请求头。</p>
+                <button type="submit">保存模型接口</button>
+              </form><p id="llm-settings-status" role="status"></p>
+            </section>
+              <section class="panel">
+              <h3>看盘频率与风险事件</h3>
+              <form id="decision-settings">
+                <label>每实例两次看盘至少间隔（分钟）<input name="cooldown" type="number" min="10" max="1440" value="10" required></label>
+                <label>每实例每小时最多看盘任务数<input name="hourly_limit" type="number" min="1" max="6" value="6" required></label>
+                <p class="caption">手动、定时和风险触发共用上限，失败尝试也计数。多条风险事件合并排队；日记和普通聊天不计入此看盘额度。</p>
+                <p>以下事件发生后主动请求LLM查看账户与复盘（不是直接向用户发消息）：</p>
+                <label class="check"><input name="stop_loss" type="checkbox" checked>触发止损</label>
+                <label class="check"><input name="take_profit" type="checkbox" checked>触发止盈</label>
+                <label class="check"><input name="liquidation" type="checkbox" checked>爆仓 / 模拟强平</label>
+                <label class="check"><input name="margin_call" type="checkbox" checked>保证金不足</label>
+                <label class="check"><input name="end" type="checkbox" checked>本局结束</label>
+                <p class="caption">事件任务同样排队限频；本局结束后只读复盘，不再交易。用户主动通知仍遵守免打扰。</p>
+                <button type="submit">保存看盘触发设置</button>
+              </form><p id="decision-settings-status" role="status"></p>
+            </section>
+            <section class="panel connection-panel">
                 <h3>行情连接</h3>
                 <p>
                   选择真实报价来源，交易全部在插件内部模拟。免注册来源无需填写密钥。
@@ -525,7 +531,6 @@
                     <input
                       name="biquote_url"
                       type="url"
-                      value="https://biquote.io/api/latest"
                       required
                     />
                     <span class="caption"
@@ -538,7 +543,6 @@
                     <input
                       name="sina_url"
                       type="url"
-                      value="https://hq.sinajs.cn/list="
                       required
                     />
                     <span class="caption"
@@ -575,11 +579,30 @@
                   class="connection-result"
                 ></div>
               </section>
-            </div>
+          </div>
+          <div data-settings-page="diary" hidden>
+              <section class="panel" id="diary-settings-panel">
+                <h3>她的每日小记</h3>
+                <p>每个交易实例独立写日记，全部实例共用一条队列，逐篇生成；共用实例设置中的决策模型和人格。</p>
+                <form id="diary-settings">
+                  <label class="check"><input name="enabled" type="checkbox" checked>开启每日日记</label>
+                  <label>每日写作时间<input name="time" type="time" value="00:10" required></label>
+                  <label>时区<input name="timezone" value="Asia/Shanghai" required></label>
+                  <label>前一天交易日志数量大于<input name="min_logs" type="number" min="0" max="10000" step="1" value="2" required>
+                    <span class="caption">默认2，即至少3条才写；包括失败操作与人类操作，不把创建实例、后台分析摘要和设置变更计入。</span></label>
+                  <label class="check"><input name="chat_only" type="checkbox">无交易但有聊天时也写日记</label>
+                  <p class="caption">此开关只用于交易日志为0的日期；1～阈值条交易日志的日期仍不生成。</p>
+                  <label>首次提供的近期聊天条数<input name="history_count" type="number" min="0" max="100" step="1" value="40" required></label>
+                  <p class="caption">仅归档功能启用后已授权参考会话的聊天，缺失旧聊天不编造。失败自动重试，重启与次日检查会补写遗漏日期；补写不读取未来资料。日记不会发往QQ。</p>
+                  <button type="submit">保存日记设置</button>
+                </form>
+                <p id="diary-settings-status" role="status"></p>
+              </section>
+
           </div>
         </section>
         <footer>
-          久留美模拟器 · 开发预览　<span>没有有效行情时不会产生模拟成交</span>
+          久留美模拟器 · v1.0.0　<span>没有有效行情时不会产生模拟成交</span>
         </footer>
       </main>
     </div>
@@ -821,11 +844,17 @@
                 <option value="3600">小时</option>
               </select>
             </div>
-            <span class="caption">支持1分钟～24小时</span></label
+            <span class="caption" id="interval-permission-note">默认1小时，由管理员控制是否允许修改。</span></label
           ><label class="check"
             ><input name="auto" type="checkbox" />开启定时自主看盘</label
           ><button type="submit">保存当前游戏绑定</button>
         </form>
+      </section>
+      <section class="panel">
+        <h3>主动汇报与免打扰</h3>
+        <form id="instance-notifications"><div id="instance-notice-fields"></div>
+          <button type="submit">保存本实例通知</button></form>
+        <p id="instance-notice-status" role="status"></p>
       </section>
       <button type="button" id="delete-current-instance" class="danger-button">
         删除此实例
@@ -873,6 +902,12 @@
           生成新ID
         </button>
       </div>
+    </dialog>
+    <dialog id="delete-user-dialog" class="instance-config-dialog delete-instance-dialog" aria-labelledby="delete-user-title">
+      <h2 id="delete-user-title">删除虚拟用户</h2><p id="delete-user-description"></p>
+      <p>将删除此用户的随机ID、QQ/UMO绑定，以及全部所属实例、交易日志、计划、日记和待发通知。其他用户不受影响，此操作不可恢复。</p>
+      <div class="delete-dialog-actions"><button type="button" data-close-dialog="delete-user-dialog">取消</button>
+        <button type="button" id="confirm-delete-user" class="danger-button">确认删除用户及其全部实例</button></div>
     </dialog>
     <script src="./vendor/lightweight-charts.js"></script>
     <script type="module" src="./app.js"></script>

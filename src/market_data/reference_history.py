@@ -4,8 +4,9 @@ import asyncio
 import json
 import time
 from datetime import datetime, timezone
-from .engine import dump, number, PAIRS
+from ..core.engine import dump, number, PAIRS
 from .history import aggregate, identity
+from .config import ENDPOINTS
 
 
 class ReferenceHistory:
@@ -75,7 +76,7 @@ class ReferenceHistory:
                 try:
                     async with self.gate:
                         raw = await self.market.fetch(
-                            "https://api.frankfurter.dev/v2/rates",
+                            ENDPOINTS["frankfurter_rates"],
                             {
                                 "base": pair[:3],
                                 "quotes": pair[4:],

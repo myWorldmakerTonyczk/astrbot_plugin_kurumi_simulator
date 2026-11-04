@@ -1,6 +1,6 @@
 """kurumi_price_history: read-only OHLC history for decision support."""
 
-from ..engine import dump
+from ..core.engine import dump
 from ._shared import USER_ID, build_tool, console
 
 NAME = "kurumi_price_history"

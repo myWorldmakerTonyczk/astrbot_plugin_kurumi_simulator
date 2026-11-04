@@ -1,8 +1,36 @@
+import { refreshRequired } from "./required-fields.js";
+import { UserManager } from "./user-manager.js";
+import { ModelSettings } from "./model-settings.js";
+import { InstanceNotices } from "./notification-form.js";
+import { DiaryPanel } from "./diary-panel.js";
 import { HistoryChart } from "./history-chart.js";
 import { TradingNotices } from "./notifications.js";
 import { instanceGroups, renderInstanceDirectory } from "./instance-catalog.js";
 const bridge = window.AstrBotPluginView;
 const tradingNotices = new TradingNotices(bridge);
+const diaryPanel = new DiaryPanel(bridge);
+const userManager = new UserManager(post, load, (user) => {
+  rotatingUser = user;
+  $("rotate-user-name").textContent = `为「${user.name}」生成新ID？`;
+  $("rotate-user-dialog").showModal();
+  tradingNotices.setScope("");
+}, (user) => {
+  deletingUser=user;
+  $("delete-user-description").textContent=`删除「${user.name}」及其 ${user.instances?.length||0} 个交易实例？`;
+  $("delete-user-dialog").showModal();tradingNotices.setScope("");
+});
+const modelSettings = new ModelSettings(post, load);
+const instanceNotices = new InstanceNotices(post, load);
+let settingsPage = "users";
+function showSettings(page) {
+  settingsPage = page;
+  for (const section of document.querySelectorAll("[data-settings-page]")) section.hidden=section.dataset.settingsPage!==page;
+  for (const button of document.querySelectorAll("[data-settings-tab],[data-settings-anchor]")) {
+    const active=(button.dataset.settingsTab||button.dataset.settingsAnchor)===page;
+    button.classList.toggle("selected",active);button.setAttribute("aria-pressed",String(active));
+  }
+}
+for (const button of document.querySelectorAll("[data-settings-tab]")) button.onclick=()=>showSettings(button.dataset.settingsTab);
 const requestId = () =>
   Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
     b.toString(16).padStart(2, "0"),
@@ -18,10 +46,7 @@ let workspaceMode = "instances",
   selectedOwner = "";
 const expandedPositions = new Set();
 let connectionDirty = false;
-const fallbackUrls = {
-  biquote: "https://biquote.io/api/latest",
-  sina: "https://hq.sinajs.cn/list=",
-};
+let decisionSettingsDirty=false;
 const money = (value) =>
   Number(value).toLocaleString("en-US", {
     minimumFractionDigits: 2,
@@ -142,11 +167,7 @@ for (const button of document.querySelectorAll("[data-workspace]"))
       : workspace("settings");
 $("back-to-catalog").onclick = returnToCatalog;
 for (const button of document.querySelectorAll("[data-settings-anchor]"))
-  button.onclick = () =>
-    $(button.dataset.settingsAnchor).scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+  button.onclick = () => showSettings(button.dataset.settingsAnchor);
 function selectInstance(instance) {
   selectedOwner = instance.ownerId;
   gid = instance.id;
@@ -236,7 +257,7 @@ async function post(route, body) {
     posting = false;
     document
       .querySelectorAll("button[type=submit],#decide")
-      .forEach((b) => (b.disabled = false));
+      .forEach((b) => (b.disabled = b.dataset.permissionDisabled === "true"));
   }
 }
 async function action(name, params) {
@@ -293,6 +314,15 @@ function journal(container, logs) {
 function render() {
   renderCatalog();
   renderManagedUsers();
+  diaryPanel.render(state.diary_settings, gid);
+  modelSettings.render(state.llm_settings, state.providers);
+  if(state.decision_limits&&!decisionSettingsDirty) {
+    const form=$("decision-settings"),v=state.decision_limits;
+    form.elements.cooldown.value=v.cooldown/60;form.elements.hourly_limit.value=v.hourly_limit;
+    for(const key of ["stop_loss","take_profit","liquidation","margin_call","end"])form.elements[key].checked=v[key];
+  }
+  instanceNotices.render(state.instance_access, gid);
+  showSettings(settingsPage);
   workspace(workspaceMode);
   if (!$("pairs").children.length) {
     for (const [index, pair] of state.pairs.entries()) {
@@ -315,11 +345,12 @@ function render() {
     form.elements.market_account.value = connection.market_account || "";
     for (const key of ["biquote", "sina"])
       form.elements[key + "_url"].value =
-        connection[key + "_url"] || fallbackUrls[key];
+        connection[key + "_url"] || connection.defaults?.[key] || "";
     sourceFields();
   }
   const selected = gid && state.current?.game.id === gid ? state.current : null;
   $("desk").hidden = !selected;
+  refreshRequired();
   if (!selected) {
     $("mood-scene").src = "./assets/neutral.png";
     journal($("logs"), []);
@@ -351,9 +382,7 @@ function render() {
     " · 第 " +
     (Math.floor((Date.now() / 1000 - g.created) / 86400) + 1) +
     " 天";
-  $("pause").textContent =
-    g.status === "paused" ? "继续自主操作" : "暂停自主操作";
-  $("pause").disabled = g.status === "ended";
+  renderDecision();
   $("metrics").replaceChildren();
   for (const [label, value] of [
     ["当前净值", v ? "$" + money(v.equity) : "等待行情"],
@@ -392,13 +421,23 @@ function render() {
       [{ id: "", name: "请选择人格" }, ...state.personas],
       g.persona,
     );
-    const unit =
-      g.interval % 3600 === 0 ? 3600 : g.interval % 60 === 0 ? 60 : 1;
+    const access = state.instance_access || {allow_custom_interval:false,effective_interval:3600};
+    const actualInterval = access.effective_interval;
+    const unit = actualInterval % 3600 === 0 ? 3600 : actualInterval % 60 === 0 ? 60 : 1;
+    bind.elements.interval.disabled = !access.allow_custom_interval;
+    $("interval-unit").disabled = !access.allow_custom_interval;
+    $("interval-permission-note").textContent = access.allow_custom_interval
+      ? "管理员已允许修改，范围10分钟～24小时；与管理员处同步。"
+      : "管理员统一设置的间隔；请在设置的用户与权限中修改。";
     $("interval-unit").value = String(unit);
-    bind.elements.interval.value = g.interval / unit;
+    bind.elements.interval.value = actualInterval / unit;
+    bind.elements.interval.min=String(600/unit);
     bind.elements.umo.value = g.reference_umo || g.umo;
     bind.elements.history_count.value = g.history_count ?? 20;
     bind.elements.auto.checked = g.auto;
+    const needsInstanceModel=state.llm_settings?.mode!=="custom"&&!state.llm_settings?.provider_id;
+    bind.elements.provider.required=needsInstanceModel;
+    bind.elements.persona.required=true;
   }
   renderPositions(g, v, selected.market_error);
   renderWatch();
@@ -426,6 +465,7 @@ function render() {
     );
   estimate();
   renderChart();
+  refreshRequired();
 }
 function renderChart() {
   if ($("desk").hidden || document.querySelector("[data-page=overview]").hidden)
@@ -457,17 +497,25 @@ $("pair").onchange = () => {
   renderChart();
 };
 $("refresh").onclick = load;
-$("pause").onclick = () =>
-  action(state.current.game.status === "paused" ? "resume" : "pause", {}).catch(
-    () => {},
-  );
 $("decide").onclick = async () => {
   try {
-    message("她正在看盘，可能需要一点时间…");
+    message("正在提交看盘任务…");
     await post("decision", { game: gid });
     await load();
   } catch {}
 };
+function renderDecision() {
+  const d=state?.decision || {state:"idle",next_allowed:0};
+  const active=["pending","running"].includes(d.state);
+  const seconds=Math.max(0,Math.ceil(d.next_allowed-Date.now()/1000));
+  $("decide").disabled=posting||active||seconds>0;
+  $("decide").dataset.permissionDisabled=String(active||seconds>0);
+  $("decide").textContent=d.state==="running"?"她正在看盘…":d.state==="pending"?"看盘已排队":seconds>0?`冷却中 ${Math.ceil(seconds/60)} 分钟`:"让她看一次盘";
+  $("decision-progress").textContent=d.state==="running"?"正在读取账户、聊天和日志并调用模型。":d.state==="pending"?`等待队列与频率额度${seconds?`，约 ${Math.ceil(seconds/60)} 分钟后可开始`:""}。`:d.state==="failed"?`上次看盘失败：${d.error}`:d.state==="success"?"上次看盘已完成，结果与操作理由已保存。":"点击后异步排队，可在此查看进度和结果。";
+  $("decision-result").hidden=!d.last_summary;
+  $("decision-summary").textContent=d.last_summary||"";
+}
+setInterval(()=>{if(state?.current&&gid)renderDecision();},1000);
 function submit(id, handler) {
   $(id).onsubmit = async (event) => {
     event.preventDefault();
@@ -709,7 +757,7 @@ $("market-source").addEventListener("change", () => {
 $("reset-market-url").onclick = () => {
   const selected = $("market-source").value;
   $("connection").elements[selected + "_url"].value =
-    state?.connection?.defaults?.[selected] || fallbackUrls[selected];
+    state?.connection?.defaults?.[selected] || "";
   connectionDirty = true;
   $("connection-status").textContent = "已恢复默认地址，保存后生效。";
 };
@@ -735,6 +783,13 @@ $("test-connection").onclick = async () => {
     $("test-connection").disabled = false;
   }
 };
+$("decision-settings").addEventListener("input",()=>{decisionSettingsDirty=true;});
+submit("decision-settings",async(p)=>{
+  const form=$("decision-settings"),values={cooldown:Math.round(Number(p.cooldown)*60),hourly_limit:Number(p.hourly_limit)};
+  for(const key of ["stop_loss","take_profit","liquidation","margin_call","end"])values[key]=form.elements[key].checked;
+  await post("decision-settings",values);decisionSettingsDirty=false;await load();
+  $("decision-settings-status").textContent="看盘限频和风险触发设置已保存。";
+});
 submit("connection", async (p) => {
   await post("settings", p);
   connectionDirty = false;
@@ -750,7 +805,7 @@ submit("binding", async (p) => {
     action: "bind",
     game: gid,
     ...p,
-    interval: Number(p.interval) * Number($("interval-unit").value),
+    interval: state.instance_access?.allow_custom_interval ? Math.round(Number(p.interval) * Number($("interval-unit").value)) : state.instance_access?.effective_interval ?? 3600,
     auto: $("binding").elements.auto.checked,
   });
   $("instance-settings-dialog").close();
@@ -863,27 +918,9 @@ $("confirm-delete-instance").onclick = async () => {
   }
 };
 let rotatingUser = null;
+let deletingUser = null;
 function renderManagedUsers() {
-  const target = $("managed-users");
-  target.replaceChildren();
-  for (const user of state.workspace?.users || []) {
-    const row = node("div", undefined, "managed-user"),
-      copy = node("div");
-    copy.append(
-      node("strong", user.name),
-      node("code", user.public_id || "尚未生成ID"),
-    );
-    const button = node("button", "刷新ID");
-    button.type = "button";
-    button.onclick = () => {
-      rotatingUser = user;
-      $("rotate-user-name").textContent = `为「${user.name}」生成新ID？`;
-      $("rotate-user-dialog").showModal();
-      tradingNotices.setScope("");
-    };
-    row.append(copy, button);
-    target.append(row);
-  }
+  userManager.render(state.workspace?.users || []);
 }
 $("generate-user-id").onclick = async () => {
   try {
@@ -920,6 +957,7 @@ for (const id of [
   "instance-settings-dialog",
   "delete-instance-dialog",
   "rotate-user-dialog",
+  "delete-user-dialog",
 ])
   $(id).addEventListener("close", () => workspace(workspaceMode));
 $("open-instance-settings").onclick = () => {
@@ -928,6 +966,17 @@ $("open-instance-settings").onclick = () => {
     state?.current?.game.name || "当前实例";
   $("instance-settings-dialog").showModal();
   tradingNotices.setScope("");
+};
+$("interval-unit").addEventListener("change",()=>{
+  $("binding").elements.interval.min=String(600/Number($("interval-unit").value));
+});
+$("confirm-delete-user").onclick=async()=>{
+  if(!deletingUser)return;
+  try {
+    await post("command",{action:"delete_user",user_id:deletingUser.id});
+    deletingUser=null;$("delete-user-dialog").close();
+    document.activeElement?.blur();await load();
+  }catch{}
 };
 if (bridge) await bridge.ready();
 await load();

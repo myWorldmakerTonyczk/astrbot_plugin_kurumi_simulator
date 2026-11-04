@@ -6,7 +6,7 @@ import time
 import uuid
 from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
-from . import ownership
+from ..users import ownership
 
 PAIRS = ("EUR/USD", "GBP/USD", "AUD/USD", "USD/JPY", "USD/CHF", "USD/CAD")
 
@@ -87,7 +87,8 @@ class Engine:
         ).fetchone():
             raise ValueError("实例已删除，不能写回")
         self.db.execute(
-            "INSERT OR REPLACE INTO games VALUES (?,?)", (game["id"], dump(game))
+            "INSERT INTO games(id,data) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
+            (game["id"], dump(game)),
         )
 
     def log(self, game, source, action, reason, detail, status="success"):
@@ -163,7 +164,7 @@ class Engine:
             provider="",
             persona="",
             umo="",
-            interval=900,
+            interval=3600,
             last_decision=0,
             index="1",
             peak="1",
@@ -194,6 +195,19 @@ class Engine:
                 )
             if game.get("user_binding", {}).get("type") == "umo":
                 game["reference_umo"] = game["user_binding"]["values"][0]
+            if game.get("owner_id"):
+                from ..users.policy import for_user, notice_defaults
+
+                user_policy = for_user(self.db, game["owner_id"])
+                limit = user_policy["max_instances"]
+                count = self.db.execute(
+                    "SELECT count(*) FROM games WHERE json_extract(data,'$.owner_id')=?",
+                    (game["owner_id"],),
+                ).fetchone()[0]
+                if limit and count >= limit:
+                    raise ValueError("此用户的交易实例数量已达管理员设置的上限")
+                game["interval"] = user_policy["interval"]
+                game["notifications"] = notice_defaults(self.db, game["owner_id"])
             self.save(game)
             self.log(game, "human", "create", "创建虚拟游戏", {"initial": str(initial)})
         return game
@@ -213,21 +227,49 @@ class Engine:
             token = ownership.issue_id(self.db, uid)
         return dict(ok=True, user_id=uid, public_id=token)
 
+    def _delete_instance(self, gid):
+        self.get(gid)
+        self.db.execute(
+            "INSERT INTO sim_deleted_instances VALUES(?,?)", (gid, time.time())
+        )
+        self.db.execute(
+            "DELETE FROM sim_selections WHERE instance_id=?", (gid,)
+        ) if self.db.execute(
+            "SELECT 1 FROM sqlite_master WHERE name='sim_selections'"
+        ).fetchone() else None
+        for table in ("logs", "requests"):
+            self.db.execute(f"DELETE FROM {table} WHERE game=?", (gid,))
+        self.db.execute("DELETE FROM games WHERE id=?", (gid,))
+
     def delete(self, gid):
         with self.transaction():
-            self.get(gid)
-            self.db.execute(
-                "INSERT INTO sim_deleted_instances VALUES(?,?)", (gid, time.time())
-            )
-            self.db.execute(
-                "DELETE FROM sim_selections WHERE instance_id=?", (gid,)
-            ) if self.db.execute(
-                "SELECT 1 FROM sqlite_master WHERE name='sim_selections'"
-            ).fetchone() else None
-            for table in ("logs", "requests"):
-                self.db.execute(f"DELETE FROM {table} WHERE game=?", (gid,))
-            self.db.execute("DELETE FROM games WHERE id=?", (gid,))
+            self._delete_instance(gid)
         return dict(ok=True, deleted=gid)
+
+    def delete_virtual_user(self, uid):
+        with self.transaction():
+            if not self.db.execute(
+                "SELECT 1 FROM sim_users WHERE id=?", (uid,)
+            ).fetchone():
+                raise ValueError("用户不存在")
+            ids = [g["id"] for g in self.games() if g.get("owner_id") == uid]
+            for gid in ids:
+                self._delete_instance(gid)
+            for table in (
+                "sim_selections",
+                "sim_reference_grants",
+                "sim_user_aliases",
+                "sim_user_tokens",
+                "sim_user_policy",
+                "sim_user_notice_defaults",
+            ):
+                if self.db.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                    (table,),
+                ).fetchone():
+                    self.db.execute(f"DELETE FROM {table} WHERE user_id=?", (uid,))
+            self.db.execute("DELETE FROM sim_users WHERE id=?", (uid,))
+        return dict(ok=True, deleted_user=uid, deleted_instances=ids)
 
     def quote(self, pair):
         q = self.quotes.get(pair)

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from src.market import (
+from src.market_data.market import (
     Market,
     parse_biquote,
     parse_sina,
@@ -13,7 +13,7 @@ from src.market import (
     validate_url,
     signature,
 )
-from src.market_settings import merge_settings, public_settings
+from src.market_data.settings import merge_settings, public_settings
 
 
 def item(age=0, **changes):

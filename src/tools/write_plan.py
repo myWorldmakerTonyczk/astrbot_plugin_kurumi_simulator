@@ -1,6 +1,6 @@
 """kurumi_write_plan: persist the current trading plan."""
 
-from ..engine import dump
+from ..core.engine import dump
 from ._shared import USER_ID, build_tool, console
 
 NAME = "kurumi_write_plan"

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from decimal import Decimal
 
-from src.engine import Engine, number
+from src.core.engine import Engine, number
 
 
 class LedgerTests(unittest.TestCase):

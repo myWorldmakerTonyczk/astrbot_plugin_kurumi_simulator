@@ -21,13 +21,14 @@ spec = importlib.util.spec_from_file_location(
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
-engine_module = sys.modules[spec.name + ".src.engine"]
-market_module = sys.modules[spec.name + ".src.market"]
+engine_module = sys.modules[spec.name + ".src.core.engine"]
+market_module = sys.modules[spec.name + ".src.market_data.market"]
 temporary = TemporaryDirectory()
 routes = []
 registered_tools = []
 context = SimpleNamespace(
     get_all_providers=lambda: [],
+    get_provider_by_id=lambda pid: SimpleNamespace() if pid=="test" else None,
     persona_manager=SimpleNamespace(personas=[]),
     register_web_api=lambda *args: routes.append(args),
     add_llm_tools=lambda *tools: registered_tools.extend(tools),
@@ -36,9 +37,11 @@ EXPECTED_TOOLS = {
     "kurumi_forex",
     "kurumi_watch_market",
     "kurumi_read_journal",
+    "kurumi_read_diary",
     "kurumi_open_position",
     "kurumi_close_position",
     "kurumi_set_protection",
+    "kurumi_set_notifications",
     "kurumi_write_memory",
     "kurumi_virtual_loan",
     "kurumi_my_instances",
@@ -49,11 +52,11 @@ EXPECTED_TOOLS = {
 with patch.object(StarTools, "get_data_dir", return_value=Path(temporary.name)):
     # Exercise both constructor signatures used by AstrBot loaders.
     plugin = module.KurumiSimulator(context)
-    assert len(registered_tools) == 12
+    assert len(registered_tools) == 14
     assert {tool.name for tool in registered_tools} == EXPECTED_TOOLS
     explicit = module.KurumiSimulator(context, {})
-    assert len(routes) == 14
-    assert len(registered_tools) == 24
+    assert len(routes) == 22
+    assert len(registered_tools) == 28
     explicit.engine.db.close()
 
 
@@ -94,9 +97,27 @@ async def check():
         ):
             return await handler()
 
+    assert (await post(plugin.web_llm_settings, {"mode":"custom","api_base":"https://example.com/v1","model":"test"}, None)).status_code==401
+    assert (await post(plugin.web_llm_settings, {"mode":"custom","api_base":"https://example.com/v1","model":"test","api_key":"private-llm-key","headers":{"X-Secret":"private-header"}})).status_code==200
+    public_scope=dict(type="http",method="GET",path="/test",query_string=b"",headers=[],server=("test",80))
+    with bind_request_context(PluginRequest(Request(public_scope),username="admin")):
+        public_state=await plugin.web_state()
+    assert "private-llm-key" not in public_state.body.decode()
+    assert "private-header" not in public_state.body.decode()
+    assert (await post(plugin.web_llm_settings, {"mode":"platform","provider_id":"test"})).status_code==200
+    diary_before = plugin.diary.config()
+    result = await post(plugin.web_diary_settings, {"min_logs": 5}, None)
+    assert result.status_code == 401
+    assert plugin.diary.config() == diary_before
+    result = await post(plugin.web_diary_settings, {"min_logs": -1})
+    assert result.status_code == 400
+    result = await post(plugin.web_diary_settings, {"min_logs": 5, "chat_only": True})
+    assert result.status_code == 200
+    assert plugin.diary.config()["min_logs"] == 5
+    assert plugin.diary.config()["chat_only"] is True
     before = plugin.settings()
     with patch(
-        spec.name + ".src.plugin.probe", new=AsyncMock(return_value={"ok": True})
+        spec.name + ".src.integration.plugin.probe", new=AsyncMock(return_value={"ok": True})
     ) as mocked:
         result = await post(plugin.web_connection_test, {"market_source": "sina"}, None)
         assert result.status_code == 401
@@ -179,6 +200,35 @@ async def check():
     )
     assert response.status_code == 200
     owned = json.loads(response.body)
+    # An instance request cannot bypass the administrator-owned interval lock.
+    denied_interval=await post(plugin.web_command,{"action":"bind","game":owned["id"],"interval":7200})
+    assert denied_interval.status_code==400
+    user=plugin.engine.users()[0]
+    revised=dict(user["policy"],allow_custom_interval=True,interval=3600,allow_panel_notice=False,allow_tool_notice=False)
+    assert (await post(plugin.web_command,{"action":"update_user","user_id":user["id"],"nickname":"新昵称","policy":revised,"notifications":user["notifications"]},None)).status_code==401
+    updated=await post(plugin.web_command,{"action":"update_user","user_id":user["id"],"nickname":"新昵称","policy":revised,"notifications":user["notifications"]})
+    assert updated.status_code==200
+    allowed_interval=await post(plugin.web_command,{"action":"bind","game":owned["id"],"interval":7200})
+    assert allowed_interval.status_code==200
+    assert plugin.engine.get(owned["id"])["interval"]==7200
+    assert next(u for u in plugin.engine.users() if u["id"]==user["id"])["policy"]["interval"]==7200
+    assert (await post(plugin.web_command,{"action":"bind","game":owned["id"],"interval":599})).status_code==400
+    assert (await post(plugin.web_decision_settings,{"cooldown":600},None)).status_code==401
+    assert (await post(plugin.web_decision_settings,{"cooldown":599})).status_code==400
+    assert (await post(plugin.web_decision_settings,{"cooldown":600,"hourly_limit":6})).status_code==200
+    plugin.engine.quotes["EUR/USD"]=dict(bid="1.1",ask="1.1002",timestamp=time.time(),tradeable=True)
+    assert (await post(plugin.web_decision,{"game":owned["id"]},None)).status_code==401
+    queued=await post(plugin.web_decision,{"game":owned["id"]})
+    assert queued.status_code==200
+    job=json.loads(queued.body)["decision"]["job_id"]
+    duplicate=await post(plugin.web_decision,{"game":owned["id"]})
+    assert json.loads(duplicate.body)["decision"]["job_id"]==job
+    plugin.decisions.runner=AsyncMock(return_value={"summary":"离线接口复盘完成"})
+    await plugin.decisions.process_one()
+    assert plugin.decisions.runner.await_count==1
+    assert plugin.decisions.state(owned["id"])["state"]=="success"
+    denied_notice=await post(plugin.web_command,{"action":"notifications","game":owned["id"],"settings":{"enabled":False}})
+    assert denied_notice.status_code==400
     assert owned["owner_name"] == "用户1"
     assert owned["user_binding"] == {"type": "random", "values": []}
     denied = await post(
@@ -187,7 +237,18 @@ async def check():
     assert denied.status_code == 401
     removed = await post(plugin.web_command, {"action": "delete", "game": owned["id"]})
     assert removed.status_code == 200
+    assert (await post(plugin.web_command,{"action":"delete_user","user_id":owned["owner_id"]},None)).status_code==401
+    assert (await post(plugin.web_command,{"action":"delete_user","user_id":owned["owner_id"]})).status_code==200
     assert plugin.engine.get(game["id"])
+    archive_game = plugin.engine.create({"user_binding": {"type": "umo", "values": ["archive:FriendMessage:123456"]}})
+    event = SimpleNamespace(unified_msg_origin="archive:FriendMessage:123456", get_sender_id=lambda: "123456",
+                            platform_meta=SimpleNamespace(name="aiocqhttp"), message_obj=SimpleNamespace(message_id="archive-hook"),
+                            get_message_str=lambda: "今天先聊聊天", get_result=lambda: SimpleNamespace(chain=[SimpleNamespace(text="好呀，慢慢聊")]))
+    await plugin.trading_context(event, SimpleNamespace(system_prompt=""))
+    await plugin.diary_reply_sent(event)
+    archived = plugin.engine.db.execute("SELECT role,content FROM diary_chat WHERE game=? ORDER BY seq", (archive_game["id"],)).fetchall()
+    assert [row["role"] for row in archived] == ["user", "assistant"]
+    plugin.engine.delete(archive_game["id"])
     race = plugin.engine.create({})
 
     async def delete_during_persona_lookup(_):
@@ -210,7 +271,7 @@ async def check():
     await plugin.terminate()
     temporary.cleanup()
     print(
-        "AstrBot runtime check passed: real constructors (context-only and config), 12 registered tools, lifecycle, real request context, anonymous rejection, authenticated state, secret omission, probe isolation, held-position source switching guard, stale decision invalidation."
+        "AstrBot runtime check passed: real constructors (context-only and config), 14 registered tools, lifecycle, real request context, anonymous rejection, authenticated state, secret omission, probe isolation, held-position source switching guard, stale decision invalidation."
     )
 
 

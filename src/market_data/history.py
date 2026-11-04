@@ -7,8 +7,9 @@ import time
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit, urlunsplit
 
-from .engine import PAIRS, dump, number
+from ..core.engine import PAIRS, dump, number
 from .market import endpoint, signature, source
+from .config import ENDPOINTS
 
 PERIODS = {
     "1m": 60,
@@ -174,6 +175,9 @@ class History:
         )
         self.remote_more = {}
         engine.db.execute(
+            "CREATE TABLE IF NOT EXISTS history_sync(feed TEXT,pair TEXT,period TEXT,checked REAL,PRIMARY KEY(feed,pair,period))"
+        )
+        engine.db.execute(
             "CREATE TABLE IF NOT EXISTS history_refresh(feed TEXT,pair TEXT,period TEXT,last_t INTEGER,PRIMARY KEY(feed,pair,period))"
         )
         engine.db.execute("""CREATE TABLE IF NOT EXISTS candles(
@@ -258,9 +262,9 @@ class History:
         elif provider == "sina":
             if period in ("1d", "1w", "1M"):
                 raw = await self.market.fetch(
-                    "https://vip.stock.finance.sina.com.cn/forex/api/jsonp.php/kurumi/NewForexService.getDayKLine",
+                    ENDPOINTS["sina_daily"],
                     {"symbol": "fx_s" + pair.replace("/", "").lower()},
-                    {"Referer": "https://finance.sina.com.cn/"},
+                    {"Referer": ENDPOINTS["sina_referer"]},
                 )
             else:
                 count = (
@@ -274,13 +278,13 @@ class History:
                         (identity(settings), pair, period, before),
                     ).fetchone()[0]
                 raw = await self.market.fetch(
-                    "https://vip.stock.finance.sina.com.cn/forex/api/jsonp.php/kurumi/NewForexService.getMinKline",
+                    ENDPOINTS["sina_intraday"],
                     {
                         "symbol": "fx_s" + pair.replace("/", "").lower(),
                         "scale": PERIODS[period] // 60,
                         "datalen": min(5000, count),
                     },
-                    {"Referer": "https://finance.sina.com.cn/"},
+                    {"Referer": ENDPOINTS["sina_referer"]},
                 )
         else:
             token, account = (
@@ -309,7 +313,9 @@ class History:
                 params.pop("count", None)
                 params["from"] = datetime.fromtimestamp(since, timezone.utc).isoformat()
             raw = await self.market.fetch(
-                f"https://api-fxpractice.oanda.com/v3/accounts/{account}/instruments/{pair.replace('/', '_')}/candles",
+                ENDPOINTS["oanda_candles"].format(
+                    account=account, instrument=pair.replace("/", "_")
+                ),
                 params,
                 {"Authorization": "Bearer " + token},
             )
@@ -342,26 +348,51 @@ class History:
             raise ValueError("历史分页参数无效")
         feed = identity(settings)
         key = (feed, pair, period, before, limit)
-        async with self.locks.setdefault(key, asyncio.Lock()):
+        async with self.locks.setdefault((feed, pair, period), asyncio.Lock()):
             bars = self.cached(feed, pair, period, before, limit + 1)
             error = ""
             complete = (
                 before
                 and self.engine.db.execute(
-                    "SELECT 1 FROM history_pages WHERE feed=? AND pair=? AND period=? AND before=? AND lim=?",
+                    "SELECT 1 FROM history_pages WHERE feed=? AND pair=? AND period=? AND before=? AND lim>=?",
                     key,
                 ).fetchone()
             )
+            checked = self.engine.db.execute(
+                "SELECT checked FROM history_sync WHERE feed=? AND pair=? AND period=?",
+                (feed, pair, period),
+            ).fetchone()
+            fresh = bool(
+                checked and checked[0] >= bucket(time.time(), period, source(settings))
+            )
+            complete = complete or bool(not before and fresh and len(bars) >= limit)
+            request_before = before
+            request_limit = limit
+            checkpoint = self.engine.db.execute(
+                "SELECT last_t FROM history_refresh WHERE feed=? AND pair=? AND period=?",
+                (feed, pair, period),
+            ).fetchone()
+            if not before and fresh and not checkpoint:
+                complete = True  # The upstream already returned no bootstrap history this period.
+            if len(bars) < limit and bars and checkpoint and (before or fresh):
+                request_before = bars[0]["time"]
+                request_limit = max(10, limit - len(bars) + 1)
+            if request_before:
+                covered = self.engine.db.execute(
+                    "SELECT 1 FROM history_pages WHERE feed=? AND pair=? AND period=? AND before=? AND lim>=?",
+                    (feed, pair, period, request_before, request_limit),
+                ).fetchone()
+                complete = complete or covered
             if (
                 not complete
-                and (len(bars) < limit + 1 or not before)
+                and (len(bars) < limit or not before)
                 and time.monotonic() - self.loaded.get(key, -1000) > 30
             ):
                 try:
                     started = time.time()
                     async with self.gate:
                         remote = await self.remote(
-                            settings, pair, period, before, limit
+                            settings, pair, period, request_before, request_limit
                         )
                     with self.engine.transaction():
                         for bar in remote:
@@ -387,18 +418,25 @@ class History:
                                 "INSERT OR REPLACE INTO candles VALUES(?,?,?,?,?,?)",
                                 (feed, pair, period, bar["time"], dump(bar), last_tick),
                             )
-                    if not before and remote:
+                    if not request_before:
+                        self.engine.db.execute(
+                            "INSERT OR REPLACE INTO history_sync VALUES(?,?,?,?)",
+                            (feed, pair, period, time.time()),
+                        )
+                    if not request_before and remote:
                         self.engine.db.execute(
                             "INSERT OR REPLACE INTO history_refresh VALUES(?,?,?,?)",
                             (feed, pair, period, max(b["time"] for b in remote)),
                         )
-                    if before:
+                    if request_before:
                         self.engine.db.execute(
-                            "INSERT OR IGNORE INTO history_pages VALUES(?,?,?,?,?)", key
+                            "INSERT OR IGNORE INTO history_pages VALUES(?,?,?,?,?)",
+                            (feed, pair, period, request_before, request_limit),
                         )
                     self.loaded[key] = time.monotonic()
                     bars = self.cached(feed, pair, period, before, limit + 1)
                 except Exception as exc:
+                    self.loaded[key] = time.monotonic()
                     error = (
                         str(exc)
                         if isinstance(exc, ValueError)

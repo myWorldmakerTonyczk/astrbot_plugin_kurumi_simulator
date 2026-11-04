@@ -1,6 +1,6 @@
 """kurumi_set_protection: adjust stop-loss and take-profit lines."""
 
-from ..engine import dump
+from ..core.engine import dump
 from ._shared import USER_ID, build_tool, console
 
 NAME = "kurumi_set_protection"

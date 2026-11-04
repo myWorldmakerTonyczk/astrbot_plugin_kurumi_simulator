@@ -1,6 +1,6 @@
 """kurumi_write_memory: compatibility entry that still only writes plans."""
 
-from ..engine import dump
+from ..core.engine import dump
 from ._shared import USER_ID, build_tool, console
 
 NAME = "kurumi_write_memory"

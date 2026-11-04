@@ -10,17 +10,9 @@ from urllib.parse import urlsplit
 
 import aiohttp
 
-from .engine import PAIRS, number
+from ..core.engine import PAIRS, number
 
-DEFAULT_URLS = {
-    "biquote": "https://biquote.io/api/latest",
-    "sina": "https://hq.sinajs.cn/list=",
-}
-LABELS = {
-    "biquote": "biquote（免注册）",
-    "sina": "新浪外汇（免注册）",
-    "oanda": "OANDA Practice",
-}
+from .config import DEFAULT_URLS, LABELS, ENDPOINTS
 
 
 def source(settings):
@@ -208,16 +200,16 @@ class Market:
                 params = {"list": symbols}
             try:
                 raw = await self.fetch(
-                    url, params, {"Referer": "https://finance.sina.com.cn/"}
+                    url, params, {"Referer": ENDPOINTS["sina_referer"]}
                 )
             except Exception as first_error:
                 if endpoint(settings, provider) != DEFAULT_URLS["sina"]:
                     raise
                 try:
                     raw = await self.fetch(
-                        "https://hq.sinajs.cn/",
+                        ENDPOINTS["sina_fallback"],
                         {"list": symbols},
-                        {"Referer": "https://finance.sina.com.cn/"},
+                        {"Referer": ENDPOINTS["sina_referer"]},
                     )
                 except ValueError as exc:
                     raise ValueError(
@@ -240,7 +232,7 @@ class Market:
             if not all(c.isdigit() or c == "-" for c in account):
                 raise ValueError("模拟账户ID格式错误")
             raw = await self.fetch(
-                f"https://api-fxpractice.oanda.com/v3/accounts/{account}/pricing",
+                ENDPOINTS["oanda_pricing"].format(account=account),
                 {"instruments": ",".join(p.replace("/", "_") for p in PAIRS)},
                 {"Authorization": "Bearer " + token},
             )

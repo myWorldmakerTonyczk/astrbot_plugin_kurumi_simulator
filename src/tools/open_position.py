@@ -1,6 +1,6 @@
 """kurumi_open_position: open a virtual position with optional protections."""
 
-from ..engine import dump
+from ..core.engine import dump
 from ._shared import USER_ID, build_tool, console
 
 NAME = "kurumi_open_position"

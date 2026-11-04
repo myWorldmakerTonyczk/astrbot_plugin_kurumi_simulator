@@ -1,6 +1,7 @@
 """Validated server-side quote settings and a credential-free View payload."""
 
-from .market import DEFAULT_URLS, LABELS, source, validate_url
+from .market import source, validate_url
+from .config import DEFAULT_URLS, LABELS
 
 
 def merge_settings(current, changes):

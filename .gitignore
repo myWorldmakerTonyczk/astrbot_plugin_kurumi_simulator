@@ -10,3 +10,5 @@ data/
 logs/
 outputs/
 node_modules/
+
+.idea/

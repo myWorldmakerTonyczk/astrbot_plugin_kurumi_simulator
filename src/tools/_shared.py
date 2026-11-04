@@ -2,8 +2,8 @@
 
 import json
 
-from ..engine import dump
-from ..trading import execute
+from ..core.engine import dump
+from ..core.trading import execute
 
 USER_ID = "随机ID方式每次调用必填管理员提供的完整ID；QQ/UMO绑定可留空。不得猜测或回显ID。"
 

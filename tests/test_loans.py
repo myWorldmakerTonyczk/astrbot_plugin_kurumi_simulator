@@ -2,7 +2,7 @@ import time
 import unittest
 from unittest.mock import patch
 from decimal import Decimal
-from src.engine import Engine, number, loan_debt
+from src.core.engine import Engine, number, loan_debt
 
 
 class LoanTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class LoanTests(unittest.TestCase):
         self.e.db.close()
 
     def test_borrow_net_wealth_and_capacity(self):
-        with patch("src.engine.time.time", return_value=self.g["loan_last"]):
+        with patch("src.core.engine.time.time", return_value=self.g["loan_last"]):
             self.e.action(self.gid, "borrow", {"amount": 5000, "reason": "周转"}, "ai")
             g = self.e.get(self.gid)
             v = self.e.valuation(g)
@@ -36,7 +36,7 @@ class LoanTests(unittest.TestCase):
             )
 
     def test_repay_preserves_net_wealth(self):
-        with patch("src.engine.time.time", return_value=self.g["loan_last"]):
+        with patch("src.core.engine.time.time", return_value=self.g["loan_last"]):
             self.e.action(self.gid, "borrow", {"amount": 5000})
             self.e.action(self.gid, "repay", {"amount": 1000})
             v = self.e.valuation(self.e.get(self.gid))
@@ -58,9 +58,9 @@ class LoanTests(unittest.TestCase):
 
     def test_daily_interest_and_interest_first_repayment(self):
         start = self.g["loan_last"]
-        with patch("src.engine.time.time", return_value=start):
+        with patch("src.core.engine.time.time", return_value=start):
             self.e.action(self.gid, "borrow", {"amount": 10000})
-        with patch("src.engine.time.time", return_value=start + 86400):
+        with patch("src.core.engine.time.time", return_value=start + 86400):
             self.assertEqual(loan_debt(self.e.get(self.gid)), Decimal("10001"))
             self.e.action(self.gid, "repay", {"amount": 1})
             g = self.e.get(self.gid)
@@ -89,7 +89,7 @@ class LoanTests(unittest.TestCase):
             )
 
     def test_insufficient_repay_atomic(self):
-        with patch("src.engine.time.time", return_value=self.g["loan_last"]):
+        with patch("src.core.engine.time.time", return_value=self.g["loan_last"]):
             self.e.action(self.gid, "borrow", {"amount": 10000})
             self.e.action(
                 self.gid, "open", dict(pair="EUR/USD", side="buy", margin=15000)

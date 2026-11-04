@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from src.engine import Engine, PAIRS
-from src.history import History, identity, parse_bars, bucket, aggregate
+from src.core.engine import Engine, PAIRS
+from src.market_data.history import History, identity, parse_bars, bucket, aggregate
 
 
 def bars(count=205, end=None, step=300):
@@ -40,6 +40,11 @@ class HistoryTests(unittest.IsolatedAsyncioTestCase):
         await self.h.page({}, "EUR/USD")
         fresh = History(self.engine, self.market)
         await fresh.page({}, "EUR/USD")
+        self.assertEqual(self.market.fetch.await_count, 1)
+        self.engine.db.execute("UPDATE history_sync SET checked=0")
+        another=History(self.engine,self.market)
+        await another.page({},"EUR/USD")
+        self.assertEqual(self.market.fetch.await_count,2)
         self.assertIn("from", self.market.fetch.call_args.args[1])
 
     async def test_downloaded_old_page_persists_even_when_short(self):
@@ -186,6 +191,26 @@ class HistoryTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(len(result["bars"]), 1)
         self.assertEqual(self.market.fetch.call_args.args[1]["granularity"], "M")
+
+
+    async def test_different_instance_and_page_sizes_use_same_cached_candles(self):
+        await self.h.page({},"EUR/USD",limit=200)
+        another=History(self.engine,self.market)
+        result=await another.page({},"EUR/USD",limit=80)
+        self.assertEqual(len(result["bars"]),80)
+        self.assertEqual(self.market.fetch.await_count,1)
+        before=result["bars"][-1]["time"]+1
+        await another.page({},"EUR/USD",before=before,limit=50)
+        self.assertEqual(self.market.fetch.await_count,1)
+
+    async def test_expanding_window_fetches_only_missing_older_bars(self):
+        await self.h.page({},"EUR/USD",limit=200)
+        oldest=self.h.cached(identity({}),"EUR/USD","5m",0,500)[0]["time"]
+        self.market.fetch.return_value=json.dumps({"bars":bars(count=100,end=oldest-300)}).encode()
+        result=await self.h.page({},"EUR/USD",limit=300)
+        self.assertEqual(len(result["bars"]),300)
+        self.assertIn("to",self.market.fetch.call_args.args[1])
+        self.assertLess(self.market.fetch.call_args.args[1]["limit"],200)
 
 
 class CalendarTests(unittest.TestCase):

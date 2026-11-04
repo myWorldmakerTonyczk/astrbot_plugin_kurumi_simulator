@@ -259,7 +259,7 @@ export class HistoryChart {
     if (changed) {
       this.feed = feed;
       this.generation++;
-      this.cache.clear();
+      // Entries are keyed by feed/pair/period and shared by every instance.
     }
     this.allPairs = allPairs;
     this.quotes = quotes || {};

@@ -1,6 +1,6 @@
 """kurumi_virtual_loan: borrow or repay within the human-set limit."""
 
-from ..engine import dump
+from ..core.engine import dump
 from ._shared import USER_ID, build_tool, console
 
 NAME = "kurumi_virtual_loan"

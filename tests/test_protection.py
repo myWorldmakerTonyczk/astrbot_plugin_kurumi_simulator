@@ -6,9 +6,9 @@ import time
 import unittest
 from types import SimpleNamespace
 
-from src.engine import Engine
+from src.core.engine import Engine
 from src.tools._shared import console, read_logs
-from src.identity import Identity
+from src.users.identity import Identity
 
 
 class ProtectionTests(unittest.TestCase):

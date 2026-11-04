@@ -14,6 +14,9 @@ def public_snapshot(plugin, gid):
     result = plugin.engine.snapshot(gid)
     result["game"] = dict(result["game"])
     result["game"].pop("user_binding", None)
+    from ..users.policy import effective
+
+    result["game"]["interval"] = effective(plugin.engine, result["game"])["effective_interval"]
     result["quotes"] = {p: q for p, q in result["quotes"].items() if p in PAIRS}
     return result
 

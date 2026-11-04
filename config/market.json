@@ -1,0 +1,20 @@
+{
+  "default_urls": {
+    "biquote": "https://biquote.io/api/latest",
+    "sina": "https://hq.sinajs.cn/list="
+  },
+  "labels": {
+    "biquote": "biquote（免注册）",
+    "sina": "新浪外汇（免注册）",
+    "oanda": "OANDA Practice"
+  },
+  "endpoints": {
+    "sina_fallback": "https://hq.sinajs.cn/",
+    "sina_referer": "https://finance.sina.com.cn/",
+    "sina_daily": "https://vip.stock.finance.sina.com.cn/forex/api/jsonp.php/kurumi/NewForexService.getDayKLine",
+    "sina_intraday": "https://vip.stock.finance.sina.com.cn/forex/api/jsonp.php/kurumi/NewForexService.getMinKline",
+    "oanda_pricing": "https://api-fxpractice.oanda.com/v3/accounts/{account}/pricing",
+    "oanda_candles": "https://api-fxpractice.oanda.com/v3/accounts/{account}/instruments/{instrument}/candles",
+    "frankfurter_rates": "https://api.frankfurter.dev/v2/rates"
+  }
+}

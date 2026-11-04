@@ -124,6 +124,6 @@
 
 ## 工具体系拆分与统一注册
 
-聊天工具改为 `src/tools/` 下每个工具一个模块，共享解析与执行辅助放在 `src/tools/_shared.py`；`src/tool_register.py` 通过 `context.add_llm_tools` 统一注册 12 个 FunctionTool，`main.py` 只保留入口与 `on_llm_request` 钩子。各工具的 JSON Schema 与原有参数说明保持一致。
+聊天工具改为 `src/tools/` 下每个工具一个模块，共享解析与执行辅助放在 `src/tools/_shared.py`；`src/tools/registry.py` 通过 `context.add_llm_tools` 统一注册 12 个 FunctionTool，`main.py` 只保留入口与 `on_llm_request` 钩子。各工具的 JSON Schema 与原有参数说明保持一致。
 
 108项单元测试通过（新增注册表结构与 schema 校验）；真实 AstrBot 4.29.4 运行时验证两种构造方式、12 个工具注册、7 个 Web 路由、鉴权与生命周期，并直接调用看盘、控制台和实例列表工具的处理函数返回成功。

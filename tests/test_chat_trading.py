@@ -3,10 +3,10 @@ import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
-from src.engine import Engine, dump
-from src.identity import Identity
+from src.core.engine import Engine, dump
+from src.users.identity import Identity
 from src.tools._shared import console, list_instances, select_instance
-from src.trading import lock_for
+from src.core.trading import lock_for
 
 
 def event(umo="bot:FriendMessage:123456", sender="123456", platform="aiocqhttp"):
