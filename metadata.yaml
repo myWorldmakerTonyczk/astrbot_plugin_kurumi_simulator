@@ -1,0 +1,7 @@
+name: astrbot_plugin_kurumi_simulator
+display_name: 久留美模拟器
+author: kunkun
+version: 0.1.0
+desc: 让 AI 在真实外汇行情中探索虚拟交易，带账户、日志与交易面板。
+astrbot_version: ">=4.29.3"
+

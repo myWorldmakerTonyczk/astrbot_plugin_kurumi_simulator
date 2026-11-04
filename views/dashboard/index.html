@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>久留美模拟器</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="workspace">
+      <aside>
+        <div class="brand">
+          <img
+            class="brand-avatar"
+            src="./assets/avatar.png"
+            alt="久留美眨眼头像"
+            width="52"
+            height="52"
+          />
+          <h1>久留美<span>模拟器</span></h1>
+        </div>
+        <nav id="instance-nav" aria-label="交易实例导航">
+          <button data-tab="overview" class="selected">交易工作台</button
+          ><button data-tab="journal">交易日志</button
+          ><button data-tab="memory">计划与经验</button>
+        </nav>
+        <nav id="settings-nav" aria-label="设置导航" hidden>
+          <button data-settings-anchor="connection">API与行情连接</button
+          ><button data-settings-anchor="access-scaffold">用户与权限</button>
+        </nav>
+        <div class="aside-note">
+          真实行情<br />虚拟资金<br /><strong>让她自己试试看。</strong>
+        </div>
+      </aside>
+      <main>
+        <header>
+          <div>
+            <span class="eyebrow">她的外汇观察日记</span>
+            <h2 id="title">从第一笔虚拟资金开始</h2>
+          </div>
+          <div class="header-actions">
+            <div class="workspace-switch" role="group" aria-label="工作区">
+              <button
+                type="button"
+                id="workspace-settings"
+                data-workspace="settings"
+                aria-pressed="false"
+              >
+                设置</button
+              ><button
+                type="button"
+                id="workspace-instances"
+                data-workspace="instances"
+                aria-pressed="true"
+                class="active"
+              >
+                交易实例
+              </button>
+            </div>
+            <button type="button" id="back-to-catalog">所有交易实例</button>
+            <button id="refresh">刷新</button>
+          </div>
+        </header>
+        <div class="instance-context" id="instance-context" hidden>
+          <span id="instance-breadcrumb" class="caption"></span
+          ><button type="button" id="open-instance-settings">实例设置</button>
+        </div>
+        <div id="notice" role="status" aria-live="polite">
+          正在连接 AstrBot…
+        </div>
+        <section class="character-banner" aria-label="久留美的交易日记">
+          <div class="banner-copy">
+            <span class="banner-kicker">久留美的外汇日记</span>
+            <h2>每一笔，都有她的理由。</h2>
+            <p id="mood-copy">给她一笔虚拟资金，让故事从这里开始。</p>
+            <span class="banner-note">真实行情 / 虚拟资金 / 自己摸索</span>
+          </div>
+          <img
+            id="mood-scene"
+            src="./assets/neutral.png"
+            alt="久留美正在观察行情"
+            width="700"
+            height="350"
+          />
+        </section>
+
+        <section data-page="catalog" id="instance-catalog">
+          <div class="catalog-heading" id="catalog-heading">
+            <div>
+              <h2>选择一个交易实例</h2>
+              <p>按用户展开，每一盘都有自己的账户、日志和经验。</p>
+            </div>
+            <button type="button" data-new-instance class="primary">
+              新建实例
+            </button>
+          </div>
+          <div id="empty" class="welcome">
+            <img
+              class="welcome-art"
+              src="./assets/welcome.png"
+              alt="久留美与外汇图表"
+              width="220"
+              height="220"
+            />
+            <h2>给她一笔资金，看看故事会怎样。</h2>
+            <p>
+              先创建游戏并连接行情，再选择她的人格和决策模型。<br />每次交易、每个理由，都留在这本日记里。
+            </p>
+            <button data-new-instance class="primary">创建第一局</button>
+          </div>
+          <div id="instance-directory" class="central-directory"></div>
+        </section>
+        <section data-page="overview">
+          <p id="instance-loading" hidden>正在打开交易实例…</p>
+          <div id="desk" hidden>
+            <div class="account-top">
+              <span id="game-status"></span>
+              <div>
+                <button id="pause">暂停自主操作</button
+                ><button id="decide" class="primary">让她看一次盘</button>
+              </div>
+            </div>
+            <div class="metrics" id="metrics"></div>
+            <div class="trading-grid">
+              <div class="watch-column">
+                <section class="panel watch-panel">
+                  <span class="eyebrow">MARKET WATCH</span>
+                  <h3>货币对</h3>
+                  <div id="watchlist"></div>
+                  <p class="caption">
+                    六个品种持续采样。点击切换图表；未授权品种仅供观察。
+                  </p>
+                </section>
+                <section class="panel loan-panel">
+                  <span class="eyebrow">VIRTUAL CREDIT</span>
+                  <h3>周转小金库</h3>
+                  <p id="loan-permission" class="caption"></p>
+                  <p class="caption" id="loan-info"></p>
+                  <form id="loan">
+                    <label
+                      >借还金额（USD）<input
+                        name="amount"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        required
+                        placeholder="例如 1000"
+                    /></label>
+                    <div class="order-directions">
+                      <button type="submit" name="action" value="borrow">
+                        借入虚拟资金</button
+                      ><button type="submit" name="action" value="repay">
+                        偿还贷款
+                      </button>
+                    </div>
+                  </form>
+                  <p class="caption">
+                    借款增加可用保证金，同时增加债务，不计作收益或追加本金。利息按真实时间累积；本局结束停止计息。启用后
+                    AI 也可借还，不能提高额度。
+                  </p>
+                </section>
+              </div>
+              <div class="market-column">
+                <section class="panel market-panel">
+                  <div class="section-head">
+                    <h3>市场观察</h3>
+                    <select id="pair" aria-label="图表货币对"></select>
+                  </div>
+                  <div id="quote" class="quote">等待有效报价</div>
+                  <div class="chart-toolbar">
+                    <label
+                      >图形<select id="chart-type">
+                        <option value="candles">K线</option>
+                        <option value="bars">OHLC柱</option>
+                        <option value="line">折线</option>
+                        <option value="area">面积</option>
+                      </select></label
+                    >
+                    <label
+                      >周期<select id="chart-period">
+                        <option value="1m">1分钟</option>
+                        <option value="5m" selected>5分钟</option>
+                        <option value="15m">15分钟</option>
+                        <option value="1h">1小时</option>
+                        <option value="4h">4小时</option>
+                        <option value="1d">日 K</option>
+                        <option value="1w">周 K</option>
+                        <option value="1M">月 K</option>
+                      </select></label
+                    >
+                    <button id="chart-zoom-in" title="放大时间轴">放大</button
+                    ><button id="chart-zoom-out" title="缩小时间轴">
+                      缩小
+                    </button>
+                    <button id="chart-latest">回到最新</button
+                    ><button id="chart-reset">重置视图</button>
+                  </div>
+                  <div
+                    id="chart-ohlc"
+                    class="chart-ohlc"
+                    aria-live="polite"
+                  ></div>
+                  <p id="history-kind" class="caption"></p>
+                  <div
+                    id="chart"
+                    class="price-chart"
+                    aria-label="外汇历史图，横轴时间，纵轴价格"
+                  ></div>
+                  <div class="chart-history">
+                    <button id="history-more">加载更早</button
+                    ><span id="chart-status" role="status">正在加载历史…</span>
+                  </div>
+                  <details class="axis-settings">
+                    <summary>坐标轴设置 · 时间与价格可拖动、缩放</summary>
+                    <div class="form-grid">
+                      <label class="check"
+                        ><input
+                          id="axis-interactive"
+                          type="checkbox"
+                          checked
+                        />允许拖动／缩放两轴</label
+                      >
+                      <label
+                        >价格刻度<select id="axis-mode">
+                          <option value="0">实际价格</option>
+                          <option value="1">对数价格</option>
+                          <option value="2">百分比</option>
+                        </select></label
+                      >
+                      <label
+                        >时间显示<select id="axis-zone">
+                          <option value="Asia/Shanghai">北京时间 UTC+8</option>
+                          <option value="UTC">UTC</option>
+                        </select></label
+                      >
+                      <div></div>
+                      <label
+                        >最低价格<input
+                          id="axis-min"
+                          type="number"
+                          step="any"
+                          min="0" /></label
+                      ><label
+                        >最高价格<input
+                          id="axis-max"
+                          type="number"
+                          step="any"
+                          min="0"
+                      /></label>
+                      <button id="axis-apply-y">应用价格范围</button
+                      ><button id="axis-auto-y">价格自动适配</button>
+                      <label
+                        >X轴开始时间（设备本地时间）<input
+                          id="axis-from"
+                          type="datetime-local" /></label
+                      ><label
+                        >X轴结束时间（设备本地时间）<input
+                          id="axis-to"
+                          type="datetime-local"
+                      /></label>
+                      <button id="axis-apply-x">应用时间范围</button>
+                    </div>
+                  </details>
+                  <p class="caption">
+                    六个品种后台持续采样并保存。历史来自所选来源；左拖到边缘自动加载更早。拖动底部时间轴或右侧价格轴可缩放，双击坐标轴复位。历史数据仅供图表展示，参考汇率不参与成交，成交仍使用实时买卖价。
+                  </p>
+                </section>
+                <section class="panel" id="positions"></section>
+              </div>
+              <div class="order-column">
+                <section class="panel order-panel">
+                  <span class="eyebrow">NEW ORDER</span>
+                  <h3>开一笔虚拟交易</h3>
+                  <p class="caption">操作和理由会记入日志，AI 也能看到。</p>
+                  <form id="trade">
+                    <label
+                      >交易货币对<select name="pair" id="trade-pair"></select
+                    ></label>
+                    <label
+                      >下单方式<select id="order-mode">
+                        <option value="margin">按投入保证金</option>
+                        <option value="units">按基础货币数量</option>
+                      </select></label
+                    >
+                    <label id="margin-label"
+                      >投入保证金（USD）
+                      <div class="amount-row">
+                        <input
+                          id="order-margin"
+                          name="margin"
+                          type="number"
+                          min="0.01"
+                          step="any"
+                          value="500"
+                          required
+                        /><button type="button" id="order-max">MAX</button>
+                      </div></label
+                    >
+                    <label id="units-label" hidden
+                      >基础货币数量<input
+                        name="units"
+                        type="number"
+                        min="0.01"
+                        step="any"
+                        value="1000"
+                        disabled
+                        required
+                    /></label>
+                    <label
+                      >本次杠杆 <output id="leverage-value">10×</output
+                      ><input
+                        id="order-leverage"
+                        name="leverage"
+                        type="range"
+                        min="1"
+                        max="10"
+                        step="0.1"
+                        value="10"
+                    /></label>
+                    <p class="caption" id="leverage-hint"></p>
+                    <div id="order-estimate" class="order-estimate"></div>
+                    <details>
+                      <summary>止损、止盈与理由</summary>
+                      <div class="form-grid">
+                        <label
+                          >止损价<input
+                            name="sl"
+                            type="number"
+                            step="any"
+                            min="0" /></label
+                        ><label
+                          >止盈价<input
+                            name="tp"
+                            type="number"
+                            step="any"
+                            min="0"
+                        /></label>
+                      </div>
+                      <label
+                        >操作理由<input
+                          name="reason"
+                          maxlength="200"
+                          placeholder="人类手动市价单"
+                      /></label>
+                    </details>
+                    <div class="order-directions">
+                      <button
+                        class="buy-button"
+                        type="submit"
+                        name="side"
+                        value="buy"
+                      >
+                        ↗ 做多 / 买入</button
+                      ><button
+                        class="sell-button"
+                        type="submit"
+                        name="side"
+                        value="sell"
+                      >
+                        ↘ 做空 / 卖出
+                      </button>
+                    </div>
+                  </form>
+                  <hr />
+                  <p id="deposit-disabled" class="caption" hidden>
+                    本局禁止中途追加虚拟本金。
+                  </p>
+                  <form id="deposit">
+                    <label
+                      >追加虚拟美元<input
+                        name="amount"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        required
+                        placeholder="例如 2000" /></label
+                    ><button type="submit">追加本金</button>
+                  </form>
+                  <p class="caption">
+                    追加本金不计入收益。开仓和平仓分别按名义价值收手续费；交易资产
+                    / 已用保证金低于 50% 时模拟强平。
+                  </p>
+                </section>
+              </div>
+            </div>
+            <section class="panel">
+              <div class="section-head">
+                <h3>最近发生的事</h3>
+                <button data-go="journal">查看交易日志</button>
+              </div>
+              <div id="recent"></div>
+            </section>
+          </div>
+        </section>
+        <section data-page="journal" hidden>
+          <div class="section-head">
+            <h3>统一交易日志</h3>
+            <p>AI、人类和系统，共同写下的账户时间线。</p>
+          </div>
+          <div id="logs" class="panel"></div>
+        </section>
+        <section data-page="memory" hidden>
+          <div class="memory-intro">
+            <img
+              src="./assets/laugh.png"
+              alt="久留美的表情"
+              width="72"
+              height="72"
+            />
+            <div>
+              <h3>把经历留在日记里</h3>
+              <p>行情会变，交易的理由不会丢。计划与经验跨会话保存。</p>
+            </div>
+          </div>
+          <div class="two-col">
+            <section class="panel">
+              <h3>当前交易计划</h3>
+              <p>开仓理由始终跟随持仓。这里保存她对下一步的安排。</p>
+              <pre id="plan">尚无计划</pre>
+            </section>
+            <section class="panel">
+              <h3>她的经验笔记</h3>
+              <p>是她自己的总结，不代表已经验证的盈利规律。</p>
+              <pre id="notes">尚无经验笔记</pre>
+            </section>
+          </div>
+          <section class="panel global-experience-placeholder">
+            <h3>智能体总经验</h3>
+            <p>
+              预留：未来单独维护跨实例的通用经验；当前实例的计划、日志与经验仍各自保存。
+            </p>
+            <button type="button" disabled>总经验（暂未启用）</button>
+          </section>
+          <section class="panel">
+            <h3>复盘资料</h3>
+            <p>
+              在聊天里让她调用 kurumi_forex 的 state、logs
+              工具，就能读取账户与日志讨论。独立复盘报告与检索筛选在后续里程碑完成。
+            </p>
+          </section>
+        </section>
+        <section data-page="setup" hidden>
+          <div class="section-head settings-heading">
+            <div>
+              <h2>设置</h2>
+              <p>
+                这里管理全局
+                API、行情连接与用户权限。每局游戏规则在新建实例时设置。
+              </p>
+            </div>
+            <span class="preview-badge">权限界面预览</span>
+          </div>
+          <section class="panel access-scaffold" id="access-scaffold">
+            <h3>用户与实例权限</h3>
+            <p>
+              新建实例已支持用户绑定；实例数量上限和访问权限入口仍待接入。目前仍通过
+              AstrBot 控制台登录访问，尚未启用多用户权限隔离。
+            </p>
+            <div class="form-grid">
+              <label
+                >用户管理<button type="button" disabled>
+                  添加用户（待接入）
+                </button></label
+              ><label
+                >每位用户的实例数量上限<input
+                  type="number"
+                  disabled
+                  placeholder="后续在此设置"
+              /></label>
+            </div>
+            <p class="caption">
+              已有交易数据暂列为“未分配用户”，不会自动认定数据所有者。
+            </p>
+          </section>
+          <section class="panel">
+            <h3>虚拟用户与随机ID</h3>
+            <p class="caption">
+              ID由管理员生成和刷新。刷新后旧ID立即失效，实例与交易数据不变。用户交给LLM，在每次工具调用的user_id参数携带。
+            </p>
+            <div class="form-grid">
+              <label
+                >用户昵称（选填）<input
+                  id="new-user-nickname"
+                  maxlength="40"
+                  placeholder="留空递增命名" /></label
+              ><button type="button" id="generate-user-id">
+                生成虚拟用户ID
+              </button>
+            </div>
+            <div id="managed-users"></div>
+          </section>
+
+          <div class="global-settings-grid">
+            <div>
+              <section class="panel connection-panel">
+                <h3>行情连接</h3>
+                <p>
+                  选择真实报价来源，交易全部在插件内部模拟。免注册来源无需填写密钥。
+                </p>
+                <form id="connection">
+                  <label
+                    >历史数据来源<select
+                      name="history_source"
+                      id="history-source"
+                    >
+                      <option value="frankfurter">
+                        Frankfurter · 每日参考汇率（默认）
+                      </option>
+                      <option value="market">
+                        所选实时行情源 · 真实K线
+                      </option></select
+                    ><span class="caption"
+                      >Frankfurter只用于日/周/月折线或面积图；选择K线、OHLC或分钟周期时自动使用实时行情源历史。不会影响成交报价。</span
+                    ></label
+                  >
+                  <label
+                    >行情源<select name="market_source" id="market-source">
+                      <option value="biquote">biquote · 免注册、免 Key</option>
+                      <option value="sina">新浪外汇 · 免注册、免 Key</option>
+                      <option value="oanda">OANDA Practice · 模拟账户</option>
+                    </select></label
+                  >
+                  <label data-source="biquote"
+                    >biquote 批量报价接口
+                    <input
+                      name="biquote_url"
+                      type="url"
+                      value="https://biquote.io/api/latest"
+                      required
+                    />
+                    <span class="caption"
+                      >自动附加本插件的六个 symbols 参数。自定义地址需返回相同
+                      JSON 格式。</span
+                    >
+                  </label>
+                  <label data-source="sina"
+                    >新浪报价接口
+                    <input
+                      name="sina_url"
+                      type="url"
+                      value="https://hq.sinajs.cn/list="
+                      required
+                    />
+                    <span class="caption"
+                      >自动附加货币对列表。自定义地址需返回相同的新浪行情格式。</span
+                    >
+                  </label>
+                  <label data-source="oanda"
+                    >模拟行情账户 ID<input
+                      name="market_account"
+                      autocomplete="off"
+                      placeholder="填写 Practice 账户 ID"
+                  /></label>
+                  <label data-source="oanda"
+                    >访问令牌<input
+                      name="market_key"
+                      type="password"
+                      autocomplete="new-password"
+                      placeholder="留空保留已保存令牌"
+                  /></label>
+                  <div class="connection-actions">
+                    <button type="button" id="test-connection">
+                      测试连通性</button
+                    ><button type="button" id="reset-market-url">
+                      恢复默认地址</button
+                    ><button type="submit" class="primary">保存行情设置</button>
+                  </div>
+                </form>
+                <p class="caption">
+                  测试使用当前输入，不保存、不切换交易报价。已有持仓时请先结清再切换来源或地址。
+                </p>
+                <div
+                  id="connection-status"
+                  role="status"
+                  class="connection-result"
+                ></div>
+              </section>
+            </div>
+          </div>
+        </section>
+        <footer>
+          久留美模拟器 · 开发预览　<span>没有有效行情时不会产生模拟成交</span>
+        </footer>
+      </main>
+    </div>
+
+    <dialog
+      id="create-instance-dialog"
+      class="instance-config-dialog"
+      aria-labelledby="create-dialog-title"
+    >
+      <div class="config-dialog-heading">
+        <h2 id="create-dialog-title">新建交易实例</h2>
+        <button type="button" data-close-dialog="create-instance-dialog">
+          取消
+        </button>
+      </div>
+      <section class="panel">
+        <p class="caption">
+          只设置这一局的资金、杠杆、货币对和挑战规则。创建后可在实例设置中绑定AI。
+        </p>
+        <form id="create">
+          <fieldset class="user-binding-fields">
+            <legend>
+              绑定用户 <span class="required-mark">（必填）</span>
+            </legend>
+            <label
+              >填写方式<select id="user-binding-type" name="user_binding_type">
+                <option value="umo">会话 UMO 列表（推荐）</option>
+                <option value="qq">QQ号</option>
+                <option value="random">随机用户ID</option>
+              </select></label
+            >
+            <label data-binding-kind="umo"
+              >会话 UMO 列表<textarea
+                id="bound-umos"
+                name="bound_umos"
+                rows="3"
+                required
+                placeholder="default:FriendMessage:123456789"
+              ></textarea
+              ><span class="caption"
+                >请输入完整的 UMO，可通过 /sid 指令快捷获取。格式:
+                {platform_name}:{message_type}:{session_id}。{platform_name}
+                就是你在 WebUI 中的 机器人
+                一栏自定义的机器人名称。{message_type} 参数为
+                “FriendMessage”。例如 default:FriendMessage:123456789</span
+              ><span class="caption"
+                >每行一条，最多20条。填写多条表示它们属于同一用户；推荐使用UMO以区分机器人和会话。</span
+              ></label
+            >
+            <label data-binding-kind="qq" hidden
+              >QQ号<input
+                id="bound-qq"
+                name="bound_qq"
+                inputmode="numeric"
+                pattern="[1-9][0-9]{4,11}"
+                maxlength="12"
+                disabled
+                placeholder="请输入QQ号"
+              /><span class="caption"
+                >QQ号方式不区分具体机器人；与UMO方式不自动合并用户。</span
+              ></label
+            >
+            <label data-binding-kind="random" hidden
+              >已有用户ID（选填）<input
+                id="bound-random-id"
+                name="bound_random_id"
+                disabled
+                placeholder="留空由管理员自动生成新用户ID"
+              /><span class="caption"
+                >创建后会在后台用户列表明文显示。给同一虚拟用户再开一盘时，可填写已有ID。用户将ID交给LLM后，工具每次通过user_id参数携带。</span
+              ></label
+            ><label
+              >用户昵称（选填）<input
+                name="user_nickname"
+                maxlength="40"
+                placeholder="留空自动命名：用户1、用户2…"
+              /><span class="caption"
+                >相同绑定复用已有用户和昵称。QQ、UMO不按号码相似性合并；随机ID可以访问对应虚拟用户的所有实例。</span
+              ></label
+            >
+          </fieldset>
+
+          <label
+            >实例名称<input
+              name="name"
+              value="小澪的外汇日记"
+              required
+              maxlength="80"
+          /></label>
+          <div class="form-grid">
+            <label
+              >初始虚拟美元<input
+                name="initial"
+                value="10000"
+                type="number"
+                min="1"
+                required /></label
+            ><label
+              >杠杆上限<select name="leverage">
+                <option>10</option>
+                <option>1</option>
+                <option>5</option>
+                <option>20</option>
+                <option>50</option>
+                <option selected>100</option>
+              </select></label
+            >
+          </div>
+          <label class="check"
+            ><input
+              name="allow_deposit"
+              id="allow-deposit"
+              type="checkbox"
+              checked
+            />允许本局中途追加虚拟美元（与借款分开控制）</label
+          >
+          <fieldset class="loan-options">
+            <legend>本局虚拟借款规则</legend>
+            <label class="check"
+              ><input
+                id="create-loan-enabled"
+                name="loan_enabled"
+                type="checkbox"
+                checked
+              />允许本局借用虚拟资金</label
+            ><label
+              >最大借款本金（USD）<input
+                id="loan-limit"
+                name="loan_limit"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value="20000"
+                required
+            /></label>
+            <p class="caption">
+              限制尚未偿还的借款本金，默认初始资金的2倍。日单利0.01%，按真实时间计算。
+            </p>
+          </fieldset>
+          <fieldset class="pair-options">
+            <legend>允许交易的货币对（直接勾选，可多选）</legend>
+            <div id="pairs"></div>
+            <button type="button" id="pairs-all">全选</button>
+          </fieldset>
+          <label
+            >双边手续费率<input
+              name="fee_rate"
+              value="0.00002"
+              type="number"
+              step="0.00001"
+              min="0"
+              max="0.01"
+          /></label>
+          <details>
+            <summary>挑战条件 · 留空就是自由模式</summary>
+            <label
+              >目标收益率 %<input
+                name="profit"
+                type="number"
+                min="0.01"
+                step="any" /></label
+            ><label
+              >累计净亏上限（美元）<input
+                name="loss"
+                type="number"
+                min="0.01"
+                step="any" /></label
+            ><label
+              >净值底线（美元）<input
+                name="floor"
+                type="number"
+                min="0.01"
+                step="any" /></label
+            ><label
+              >最大回撤 %<input
+                name="drawdown"
+                type="number"
+                min="0.01"
+                max="100"
+                step="any" /></label
+            ><label
+              >到期时间<input name="deadline" type="datetime-local"
+            /></label>
+          </details>
+          <button class="primary" type="submit">创建交易实例</button>
+        </form>
+      </section>
+    </dialog>
+    <dialog
+      id="instance-settings-dialog"
+      class="instance-config-dialog"
+      aria-labelledby="instance-dialog-title"
+    >
+      <div class="config-dialog-heading">
+        <h2 id="instance-dialog-title">实例设置</h2>
+        <button type="button" data-close-dialog="instance-settings-dialog">
+          关闭
+        </button>
+      </div>
+      <section class="panel">
+        <p id="binding-instance-name" class="caption"></p>
+        <h3>AI 看盘绑定</h3>
+        <form id="binding">
+          <label
+            >看盘时参考的聊天记录条数<input
+              name="history_count"
+              type="number"
+              min="0"
+              max="100"
+              value="20"
+            /><span class="caption"
+              >0表示不带聊天记录。后台只读取已关联的主参考会话，不向用户发送消息。</span
+            ></label
+          >
+          <label
+            >平台已配置的模型<select
+              id="provider"
+              name="provider"
+            ></select></label
+          ><label
+            >AstrBot 人格<select id="persona" name="persona"></select></label
+          ><label
+            >主参考会话 UMO（可选）<input
+              name="umo"
+              placeholder="请先在目标私聊通过工具选择此实例，再关联" /></label
+          ><label
+            >看盘间隔
+            <div class="interval-row">
+              <input
+                name="interval"
+                type="number"
+                min="0.01"
+                step="any"
+                value="15"
+                required
+              /><select id="interval-unit" aria-label="看盘间隔单位">
+                <option value="1">秒</option>
+                <option value="60" selected>分钟</option>
+                <option value="3600">小时</option>
+              </select>
+            </div>
+            <span class="caption">支持1分钟～24小时</span></label
+          ><label class="check"
+            ><input name="auto" type="checkbox" />开启定时自主看盘</label
+          ><button type="submit">保存当前游戏绑定</button>
+        </form>
+      </section>
+      <button type="button" id="delete-current-instance" class="danger-button">
+        删除此实例
+      </button>
+      <p class="caption">
+        资金、杠杆上限和借款规则在创建时确定；中途编辑规则的入口后续再接入。
+      </p>
+    </dialog>
+    <dialog
+      id="delete-instance-dialog"
+      class="instance-config-dialog delete-instance-dialog"
+      aria-labelledby="delete-instance-title"
+    >
+      <h2 id="delete-instance-title">删除交易实例</h2>
+      <p id="delete-instance-name"></p>
+      <p>
+        将永久删除这一实例的余额、持仓、交易日志、计划与经验。其他实例、用户账号及公共历史行情不受影响。持仓不会生成平仓成交记录。
+      </p>
+      <div class="delete-dialog-actions">
+        <button type="button" data-close-dialog="delete-instance-dialog">
+          取消</button
+        ><button
+          type="button"
+          id="confirm-delete-instance"
+          class="danger-button"
+        >
+          确认删除
+        </button>
+      </div>
+    </dialog>
+    <dialog
+      id="rotate-user-dialog"
+      class="instance-config-dialog delete-instance-dialog"
+      aria-labelledby="rotate-user-title"
+    >
+      <h2 id="rotate-user-title">刷新用户ID</h2>
+      <p id="rotate-user-name"></p>
+      <p>
+        旧ID会立即失效；此用户的全部实例、交易记录和计划保持不变。将新ID交给用户后，LLM调用工具时需要携带新ID。
+      </p>
+      <div class="delete-dialog-actions">
+        <button type="button" data-close-dialog="rotate-user-dialog">
+          取消</button
+        ><button type="button" id="confirm-rotate-user" class="primary">
+          生成新ID
+        </button>
+      </div>
+    </dialog>
+    <script src="./vendor/lightweight-charts.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

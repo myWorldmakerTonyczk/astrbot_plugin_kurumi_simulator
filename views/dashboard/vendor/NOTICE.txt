@@ -1,0 +1,5 @@
+Lightweight Charts v5.0.9
+Copyright (c) 2025 TradingView, Inc.
+Licensed under Apache License 2.0; see LICENSE-lightweight-charts.txt.
+https://www.tradingview.com/
+Source: https://github.com/tradingview/lightweight-charts
