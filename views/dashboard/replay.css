@@ -170,3 +170,7 @@
 .replay-activity-dots { display: flex; justify-content: center; gap: 2px; min-height: 7px; }
 .replay-activity-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--activity-ink); }
 .replay-activity-count { position: absolute; top: 0; left: 0; right: 0; color: #243735; font-size: .66rem; text-shadow: 0 0 3px white, 0 0 3px white; }
+
+.replay-market.is-floating.is-positioned { left: var(--float-left); top: var(--float-top); right: auto; bottom: auto; }
+.replay-market.is-floating .replay-chart-top { cursor: move; touch-action: none; user-select: none; }
+.replay-market.is-floating .replay-return-chart { cursor: pointer; }

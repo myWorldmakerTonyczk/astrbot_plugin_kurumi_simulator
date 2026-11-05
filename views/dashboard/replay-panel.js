@@ -74,6 +74,7 @@ export class ReplayPanel {
     this.returnChart = root.querySelector(".replay-return-chart");
     this.workspaceHeader = root.closest(".workspace > main")?.querySelector(":scope > header");
     this.returnChart.onclick = () => this.marketSlot.scrollIntoView({block: "center"});
+    this.installChartDrag();
     const trackScroll = () => {
       cancelAnimationFrame(this.floatFrame);
       this.floatFrame = requestAnimationFrame(() => this.updateFloatingChart());
@@ -88,10 +89,40 @@ export class ReplayPanel {
     const boundary = Math.max(0, this.workspaceHeader?.getBoundingClientRect().bottom || 0);
     const floating = !!this.chart && !this.root.hidden && this.marketSlot.getBoundingClientRect().bottom <= boundary;
     const wasFloating = this.market.classList.contains("is-floating");
-    if (floating === wasFloating) return;
+    if (floating === wasFloating) {
+      if (floating && this.floatPosition) this.placeFloatingChart(this.floatPosition);
+      return;
+    }
     this.marketSlot.style.minHeight = floating ? this.market.offsetHeight + "px" : "";
     this.market.classList.toggle("is-floating", floating);
     this.returnChart.hidden = !floating;
+    if (floating && this.floatPosition) this.placeFloatingChart(this.floatPosition);
+  }
+
+  placeFloatingChart({x, y}) {
+    const xMax = Math.max(6, window.innerWidth - this.market.offsetWidth - 6);
+    const yMax = Math.max(6, window.innerHeight - this.market.offsetHeight - 6);
+    this.floatPosition = {x: Math.max(6, Math.min(x, xMax)), y: Math.max(6, Math.min(y, yMax))};
+    this.market.style.setProperty("--float-left", this.floatPosition.x + "px");
+    this.market.style.setProperty("--float-top", this.floatPosition.y + "px");
+    this.market.classList.add("is-positioned");
+  }
+
+  installChartDrag() {
+    const handle = this.market.querySelector(".replay-chart-top");
+    let drag = null;
+    handle.addEventListener("pointerdown", event => {
+      if (!this.market.classList.contains("is-floating") || event.button !== 0 || event.target.closest("button")) return;
+      const rect = this.market.getBoundingClientRect();
+      drag = {pointer: event.pointerId, x: event.clientX - rect.left, y: event.clientY - rect.top};
+      handle.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+    handle.addEventListener("pointermove", event => {
+      if (drag?.pointer !== event.pointerId || !this.market.classList.contains("is-floating")) return;
+      this.placeFloatingChart({x: event.clientX - drag.x, y: event.clientY - drag.y});
+    });
+    handle.addEventListener("lostpointercapture", () => { drag = null; });
   }
 
   open(scope, pairs) {

@@ -140,7 +140,7 @@ with sync_playwright() as p:
     page.wait_for_selector(".replay-row")
     assert page.locator(".replay-pairs").is_hidden()
     assert page.locator(".replay-current-pair").inner_text() == "EUR/USD"
-    assert page.locator(".replay-market").evaluate("node => getComputedStyle(node).position") == "sticky"
+    assert not page.locator(".replay-market").evaluate("node => node.classList.contains('is-floating')")
 
     chart_canvases = ".replay-chart canvas"
     page.wait_for_function(
@@ -182,6 +182,20 @@ with sync_playwright() as p:
     activity.get_by_role("button", name="已记录观望", exact=False).click()
     assert "从入队到结束 6 秒" in page.locator(".replay-detail").inner_text()
     assert "记录观望 × 1" in page.locator(".replay-detail").inner_text()
+    page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
+    floating = page.locator(".replay-market.is-floating")
+    floating.wait_for()
+    original = floating.bounding_box()
+    handle = floating.locator(".replay-chart-top strong").bounding_box()
+    page.mouse.move(handle["x"] + 10, handle["y"] + 5)
+    page.mouse.down()
+    page.mouse.move(handle["x"] - 70, handle["y"] - 45, steps=5)
+    page.mouse.up()
+    moved = floating.bounding_box()
+    assert moved["x"] < original["x"] - 40 and moved["y"] < original["y"] - 25
+    floating.get_by_role("button", name="回到图表").click()
+    floating.wait_for(state="detached")
+
 
     page.get_by_role("button", name="交易工作台", exact=True).click()
     page.evaluate("window.fixture.current.game.pairs = ['EUR/USD', 'GBP/USD']")
