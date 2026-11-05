@@ -23,7 +23,7 @@
 .replay-stats span { font-size: .78rem; color: var(--review-muted); }
 .replay-stats strong, .replay-row time { font-variant-numeric: tabular-nums; }
 .replay-chart-top, .replay-timeline-top { padding: 12px; border-top: 1px solid var(--review-line); }
-.replay-chart { width: 100%; min-height: 90px; }
+.replay-chart { position: relative; width: 100%; min-height: 90px; }
 /* Lightweight Charts layers a transparent interaction canvas over the data canvas. */
 .replay-chart canvas { background: transparent; border-radius: 0; }
 .replay-chart td { border: 0; padding: 0; }
@@ -45,3 +45,14 @@
 .replay-detail h4 { margin-bottom: 6px; }
 @media (max-width: 900px) { .replay-layout { grid-template-columns: minmax(0,1fr); } }
 @media (max-width: 500px) { .replay-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } .replay-row { grid-template-columns: minmax(92px,1fr) minmax(55px,1fr) auto; } .replay-actor { display: none; } }
+
+.replay-trade-labels { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
+.replay-trade-labels .replay-trade-label {
+  position: absolute; pointer-events: auto; margin: 0; padding: 3px 8px;
+  color: #fff; background: #12675d; border: 1px solid #fff; border-radius: 5px;
+  font: 750 15px/1.3 "Microsoft YaHei", "PingFang SC", sans-serif;
+  white-space: nowrap; box-shadow: 0 1px 4px #24373555; cursor: pointer;
+}
+.replay-trade-labels .replay-trade-label[data-kind="close"] { background: #943550; }
+.replay-trade-labels .replay-trade-label[data-kind="system"] { background: #805018; }
+.replay-trade-labels .replay-trade-label[aria-pressed="true"] { outline: 2px solid #243735; }

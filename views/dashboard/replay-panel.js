@@ -63,6 +63,7 @@ export class ReplayPanel {
   close() {
     this.version++;
     this.scope = "";
+    this.clearTradeLabels?.();
     this.chart?.remove();
     this.chart = null;
     this.root.querySelector(".replay-chart").classList.remove("is-drawn");
@@ -99,6 +100,7 @@ export class ReplayPanel {
     } catch (error) {
       if (request !== this.version) return;
       this.data = null;
+      this.clearTradeLabels?.();
       this.chart?.remove();
       this.chart = null;
       this.root.querySelector(".replay-chart").classList.remove("is-drawn");
@@ -131,6 +133,7 @@ export class ReplayPanel {
   }
 
   draw() {
+    this.clearTradeLabels?.();
     this.chart?.remove();
     this.chart = null;
     this.priceSeries = null;
@@ -185,7 +188,7 @@ export class ReplayPanel {
       time: e.bar, position: "atPriceMiddle", price: e.price,
       shape: e.action === "close" ? "circle" : e.position.side === "buy" ? "arrowUp" : "arrowDown",
       color: e.actor === "system" ? "#855a21" : e.actor === "human" ? "#636b83" : e.action === "close" ? "#b34a65" : "#168275",
-      text: title(e),
+      size: 1.25,
     })));
     const metric = this.root.querySelector(".replay-metric").value;
     const seconds = {"15m": 900, "1h": 3600, "4h": 14400}[data.period];
@@ -215,10 +218,74 @@ export class ReplayPanel {
       }
     });
     chart.timeScale().fitContent();
+    this.installTradeLabels(root, chart, candles, trades);
     this.highlight(this.selected);
   }
 
+  installTradeLabels(root, chart, candles, trades) {
+    if (!trades.length) return;
+    const overlay = el("div", null, "replay-trade-labels");
+    root.append(overlay);
+    const labels = trades.map(event => {
+      const button = el("button", title(event), "replay-trade-label");
+      button.type = "button";
+      button.dataset.kind = event.actor === "system" ? "system" : event.action;
+      button.title = stamp(event.time) + " · " + event.price;
+      button.onclick = () => this.select(event, false);
+      overlay.append(button);
+      return {event, button};
+    });
+    const scale = chart.timeScale();
+    let frame = 0;
+    const update = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const width = scale.width(), height = chart.panes()[0].getHeight();
+        const occupied = [];
+        for (const {event, button} of labels) {
+          const x = scale.timeToCoordinate(event.bar);
+          const y = candles.priceToCoordinate(event.price);
+          const selected = this.selected?.id === event.id;
+          button.setAttribute("aria-pressed", String(selected));
+          if (x == null || y == null || x < 0 || x > width || y < 0 || y > height) {
+            button.hidden = true;
+            continue;
+          }
+          button.hidden = false;
+          const w = button.offsetWidth, h = button.offsetHeight;
+          const left = Math.min(Math.max(2, x - w / 2), Math.max(2, width - w - 2));
+          const candidates = [y + 11, y - h - 11, y + h + 15, y - 2 * h - 15];
+          const top = candidates.find(t => t >= 2 && t + h <= height - 2 &&
+            !occupied.some(r => left < r.right + 4 && left + w + 4 > r.left && t < r.bottom + 3 && t + h + 3 > r.top));
+          button.hidden = top == null;
+          if (top == null) continue;
+          button.style.left = left + "px";
+          button.style.top = top + "px";
+          occupied.push({left, right: left + w, top, bottom: top + h});
+        }
+      });
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(root);
+    scale.subscribeVisibleLogicalRangeChange(update);
+    root.addEventListener("pointermove", update);
+    root.addEventListener("wheel", update, {passive: true});
+    this.updateTradeLabels = update;
+    this.clearTradeLabels = () => {
+      observer.disconnect();
+      scale.unsubscribeVisibleLogicalRangeChange(update);
+      root.removeEventListener("pointermove", update);
+      root.removeEventListener("wheel", update);
+      cancelAnimationFrame(frame);
+      overlay.remove();
+      this.updateTradeLabels = null;
+      this.clearTradeLabels = null;
+    };
+    update();
+  }
+
   highlight(event) {
+    this.updateTradeLabels?.();
     if (!this.chart || !this.priceSeries) return;
     if (this.positionLine) {
       this.chart.removeSeries(this.positionLine);
