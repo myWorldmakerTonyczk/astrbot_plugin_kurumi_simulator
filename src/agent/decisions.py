@@ -5,6 +5,7 @@ import json
 from astrbot.api import logger
 import time
 from ..core.engine import dump
+from ..core.replay_records import decision_scope
 from ..users.policy import effective
 from ..diary.store import redact
 from .decision_settings import settings
@@ -264,12 +265,13 @@ class DecisionService:
                     from .runner import decide
                 else:
                     decide = self.runner
-                result = await decide(
-                    self.plugin,
-                    gid,
-                    selected["trigger"],
-                    events=json.loads(selected["events"]),
-                )
+                scope = decision_scope.set((gid, selected["id"]))
+                try:
+                    result = await decide(
+                        self.plugin, gid, selected["trigger"], events=json.loads(selected["events"])
+                    )
+                finally:
+                    decision_scope.reset(scope)
                 self.db.execute(
                     "UPDATE decision_jobs SET state='success',result=?,error='',updated=? WHERE id=?",
                     (dump(result), time.time(), selected["id"]),

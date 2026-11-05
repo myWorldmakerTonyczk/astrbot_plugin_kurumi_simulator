@@ -55,7 +55,7 @@ with patch.object(StarTools, "get_data_dir", return_value=Path(temporary.name)):
     assert len(registered_tools) == 14
     assert {tool.name for tool in registered_tools} == EXPECTED_TOOLS
     explicit = module.KurumiSimulator(context, {})
-    assert len(routes) == 22
+    assert len(routes) == 24
     assert len(registered_tools) == 28
     explicit.engine.db.close()
 

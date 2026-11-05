@@ -67,6 +67,14 @@ js = """window.fixture=FIXTURE;window.AstrBotPluginView={
    return {cursor:window.alertSeq,events:window.alertEvents.filter(e=>e.id>params.after),has_more:false};
  }
  if(endpoint==='diaries')return {entries:[{day:'2026-11-03',status:'success',content:'今天认真观察了行情，也和你聊了天。'}],next_before:'2026-11-03'};
+ if(endpoint==='review'){
+  const t=Math.floor(Date.now()/900000)*900;
+  return {pair:'EUR/USD',period:'15m',start:t-86400,end:t+900,warning:'',candles:[
+    {time:t-900,open:1.1,high:1.101,low:1.099,close:1.1005},{time:t,open:1.1005,high:1.102,low:1.1,close:1.101}],
+    marks:[{time:t-900,equity:10000,return_rate:0,drawdown:0},{time:t,equity:9900,return_rate:-1,drawdown:1}],
+    events:[{id:'log-1',time:t,bar:t,action:'open',status:'success',actor:'ai',reason:'观察到突破',price:1.1005,fee:.02,position:{id:'p',pair:'EUR/USD',side:'buy',units:1000}}],
+    diaries:[],baseline:'等待突破'};
+ }
  if(endpoint==='history'){
   window.historyRequests??=[];window.historyRequests.push(params);
   const steps={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400,'1w':604800,'1M':2592000},step=steps[params.period];
@@ -120,6 +128,13 @@ with sync_playwright() as p:
     assert page.locator("[data-page=memory]").is_hidden()
     page.locator("#instance-directory .instance-card").first.click()
     page.wait_for_selector("#desk:not([hidden])")
+    page.get_by_role("button", name="AI 复盘", exact=True).click()
+    page.wait_for_selector(".replay-row")
+    assert page.locator(".replay-chart canvas").count() >= 2
+    page.locator(".replay-row").click()
+    assert "观察到突破" in page.locator(".replay-detail").inner_text()
+    assert "等待突破" in page.locator(".replay-detail").inner_text()
+    page.get_by_role("button", name="交易工作台", exact=True).click()
     assert page.locator('#pause').count()==0
     page.locator('#decide').click()
     page.wait_for_function("window.lastRequest?.endpoint==='decision'")

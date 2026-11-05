@@ -6,6 +6,7 @@ from astrbot.api.star import StarTools
 from astrbot.api.web import request, json_response, error_response
 
 from ..core.engine import Engine, PAIRS, dump
+from ..core.replay import review
 from ..market_data.market import Market, probe, signature, market_error
 from ..market_data.settings import merge_settings, public_settings
 from ..agent.decisions import DecisionService
@@ -45,6 +46,7 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin):
         self.runtime_error = ""
         for route, handler, methods in (
             ("state", self.web_state, ["GET"]),
+            ("review", self.web_review, ["GET"]),
             ("decision-settings", self.web_decision_settings, ["POST"]),
             ("llm-settings", self.web_llm_settings, ["POST"]),
             ("diaries", self.web_diaries, ["GET"]),
@@ -163,6 +165,17 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin):
             return error_response(
                 "历史行情获取失败，请检查来源连接后重试", status_code=400
             )
+
+    async def web_review(self):
+        if not self.authorized():
+            return error_response("需要 AstrBot 登录", status_code=401)
+        try:
+            return json_response(await review(
+                self, request.query.get("game", ""), request.query.get("pair", ""),
+                int(request.query.get("days", 1)), int(request.query.get("end", 0)),
+            ))
+        except (ValueError, TypeError) as exc:
+            return error_response(str(exc), status_code=400)
 
     async def web_state(self):
         if not self.authorized():

@@ -3,12 +3,15 @@ import { UserManager } from "./user-manager.js";
 import { ModelSettings } from "./model-settings.js";
 import { InstanceNotices } from "./notification-form.js";
 import { DiaryPanel } from "./diary-panel.js";
+import { ReplayPanel } from "./replay-panel.js";
 import { HistoryChart } from "./history-chart.js";
 import { TradingNotices } from "./notifications.js";
 import { instanceGroups, renderInstanceDirectory } from "./instance-catalog.js";
 const bridge = window.AstrBotPluginView;
 const tradingNotices = new TradingNotices(bridge);
 const diaryPanel = new DiaryPanel(bridge);
+const replayPanel = new ReplayPanel(document.getElementById("replay"), (game, options) =>
+  bridge.apiGet("review", {game, ...options}));
 const userManager = new UserManager(post, load, (user) => {
   rotatingUser = user;
   $("rotate-user-name").textContent = `为「${user.name}」生成新ID？`;
@@ -142,6 +145,8 @@ function workspace(mode) {
       ? gid
       : "",
   );
+  if (page === "replay" && current) replayPanel.open(gid, current.game.pairs);
+  else if (replayPanel.scope) replayPanel.close();
   if (inInstance && instancePage === "overview")
     requestAnimationFrame(renderChart);
 }

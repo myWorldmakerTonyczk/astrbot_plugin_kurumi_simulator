@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>久留美模拟器</title>
     <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./replay.css" />
   </head>
   <body>
     <div class="workspace">
@@ -21,6 +22,7 @@
         </div>
         <nav id="instance-nav" aria-label="交易实例导航">
           <button data-tab="overview" class="selected">交易工作台</button
+          ><button data-tab="replay">AI 复盘</button
           ><button data-tab="journal">交易日志</button
           ><button data-tab="memory">计划与经验</button>
         </nav>
@@ -394,6 +396,7 @@
             </section>
           </div>
         </section>
+        <section data-page="replay" id="replay" hidden></section>
         <section data-page="journal" hidden>
           <div class="section-head">
             <h3>统一交易日志</h3>
