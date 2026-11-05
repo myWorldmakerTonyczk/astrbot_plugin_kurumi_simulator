@@ -66,7 +66,13 @@
 .replay-pairs details[open] .replay-pair-selection { display: none; }
 .replay-pair-list { display: grid; gap: 6px; margin-top: 6px; }
 .replay-pairs .replay-pair { text-align: left; padding: 8px; font-weight: 650; }
-.replay-pairs .replay-pair[aria-pressed="true"] { background: var(--review-mint); border-color: #168275; color: #12675d; }
+.replay-pairs .replay-pair[aria-pressed="true"] { outline: 2px solid #74588f; outline-offset: -2px; }
+.replay-pairs .replay-pair[data-sign="gain"] { --pnl-color: #a32943; }
+.replay-pairs .replay-pair[data-sign="loss"] { --pnl-color: #176c46; }
+.replay-pairs .replay-pair:is([data-sign="gain"], [data-sign="loss"]) {
+  background: color-mix(in srgb, var(--pnl-color) var(--pnl-strength), var(--review-paper));
+}
+.replay-pair[data-sign] .replay-pair-pnl { color: var(--pnl-color, var(--review-muted)); }
 @media (max-width: 1100px) {
   .replay-layout:has(> .replay-pairs:not([hidden])) { grid-template-columns: 120px minmax(0, 1fr); }
   .replay-layout:has(> .replay-pairs:not([hidden])) > .replay-detail { grid-column: 2; }
@@ -80,8 +86,6 @@
 .replay-pair { display: grid; gap: 4px; }
 .replay-pair small, .replay-pair-note { color: var(--review-muted); font-size: .75rem; }
 .replay-pair-pnl { font-size: .84rem; font-variant-numeric: tabular-nums; }
-.replay-pair-pnl[data-sign="gain"] { color: #12675d; }
-.replay-pair-pnl[data-sign="loss"] { color: #943550; }
 .replay-pair-volume { height: 4px; border-radius: 4px; background: linear-gradient(to right, #558e80 var(--activity), #dce5df var(--activity)); }
 .replay-performance { container-type: inline-size; padding: 14px 12px; border-top: 1px solid var(--review-line); }
 .replay-performance h3, .replay-performance h4 { margin: 0; }

@@ -58,18 +58,24 @@ async def review(plugin, gid, pair="", days=1, end=0, *, private=True, include_c
     end = end or now
     start = end - days * 86400
     totals = db.execute(
-        """SELECT json_extract(data,'$.detail.position.pair') AS pair, count(*) AS fills,
-                  sum(coalesce(CAST(json_extract(data,'$.detail.position.pnl') AS REAL),0)
-                      - coalesce(CAST(json_extract(data,'$.detail.fee') AS REAL),0)) AS net
-           FROM logs WHERE game=? AND created BETWEEN ? AND ?
-           AND json_extract(data,'$.status')='success'
-           AND json_extract(data,'$.action') IN ('open','close')
-           GROUP BY pair ORDER BY fills DESC, max(seq) DESC""",
+        """WITH operations AS (
+               SELECT seq, json_extract(data,'$.detail.position.pair') AS pair,
+                      json_extract(data,'$.action') AS action,
+                      coalesce(CAST(json_extract(data,'$.detail.position.pnl') AS REAL),0)
+                      - coalesce(CAST(json_extract(data,'$.detail.fee') AS REAL),0) AS net
+               FROM logs WHERE game=? AND created BETWEEN ? AND ?
+               AND json_extract(data,'$.status')='success'
+               AND json_extract(data,'$.action') IN ('open','close','protect')
+           )
+           SELECT pair, count(*) AS operations,
+                  sum(action IN ('open','close')) AS fills,
+                  sum(CASE WHEN action IN ('open','close') THEN net ELSE 0 END) AS net
+           FROM operations GROUP BY pair ORDER BY operations DESC, max(seq) DESC""",
         (gid, start, end),
     )
     pair_stats = {row["pair"]: dict(row) for row in totals if row["pair"] in game["pairs"]}
     for instrument in game["pairs"]:
-        pair_stats.setdefault(instrument, dict(pair=instrument, fills=0, net=0))
+        pair_stats.setdefault(instrument, dict(pair=instrument, operations=0, fills=0, net=0))
     if not pair:
         pair = next(iter(pair_stats))
     if pair not in game["pairs"]:

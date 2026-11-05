@@ -152,9 +152,10 @@ export class ReplayPanel {
     this.pairList.replaceChildren();
     this.pairSelection.textContent = selected || (pairs.length === 1 ? pairs[0] : "");
     const ranked = new Map(stats.filter(row => pairs.includes(row.pair)).map(row => [row.pair, row]));
-    const max = Math.max(1, ...stats.map(row => row.fills));
+    const maxOperations = Math.max(1, ...Array.from(ranked.values(), row => row.operations ?? row.fills));
+    const maxPnl = Math.max(.01, ...Array.from(ranked.values(), row => Math.abs(row.net)));
     for (const pair of [...new Set([...ranked.keys(), ...pairs])]) {
-      const {fills, net} = ranked.get(pair) || {fills: 0, net: 0};
+      const {fills = 0, operations = fills, net = 0} = ranked.get(pair) || {};
       const button = el("button", null, "replay-pair");
       button.type = "button";
       button.dataset.pair = pair;
@@ -162,17 +163,19 @@ export class ReplayPanel {
       const sign = Math.round(net * 100) === 0 ? "flat" : net > 0 ? "gain" : "loss";
       const pnl = el("span", fills ? (sign === "loss" ? "−" : sign === "gain" ? "+" : "") + "$" + number(Math.abs(net)) : "—", "replay-pair-pnl");
       pnl.dataset.sign = sign;
+      button.dataset.sign = sign;
+      button.style.setProperty("--pnl-strength", (8 + 24 * Math.abs(net) / maxPnl) + "%");
       const bar = el("span", null, "replay-pair-volume");
-      bar.style.setProperty("--activity", (fills / max * 100) + "%");
+      bar.style.setProperty("--activity", (operations / maxOperations * 100) + "%");
       bar.setAttribute("aria-hidden", "true");
-      button.append(el("strong", pair), el("small", fills + " 笔成交"), pnl, bar);
+      button.append(el("strong", pair), el("small", operations + " 次操作"), pnl, bar);
       button.onclick = () => {
         this.requestedPair = pair;
         this.load();
       };
       this.pairList.append(button);
     }
-    this.pairList.append(el("small", "平仓盈亏扣本期成交费", "replay-pair-note"));
+    this.pairList.append(el("small", "所选时段平仓盈亏扣成交费", "replay-pair-note"));
   }
 
   close() {

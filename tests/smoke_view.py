@@ -203,9 +203,9 @@ with sync_playwright() as p:
     page.locator("#refresh").click()
     page.get_by_role("button", name="AI 复盘", exact=True).click()
     pairs = page.get_by_role("navigation", name="复盘货币对")
-    assert "7 笔成交" in pairs.get_by_role("button", name="EUR/USD").inner_text()
-    assert pairs.locator("[data-sign=loss]").count() == 1
-    assert pairs.locator("[data-sign=gain]").count() == 1
+    assert "7 次操作" in pairs.get_by_role("button", name="EUR/USD").inner_text()
+    assert pairs.locator(".replay-pair[data-sign=loss]").count() == 1
+    assert pairs.locator(".replay-pair[data-sign=gain]").count() == 1
     pairs.locator("summary").click()
     assert pairs.get_by_role("button", name="EUR/USD").is_hidden()
     assert pairs.locator(".replay-pair-selection").inner_text() == "EUR/USD"
