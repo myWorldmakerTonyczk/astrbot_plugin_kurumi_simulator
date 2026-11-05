@@ -455,6 +455,7 @@ export class ReplayPanel {
       const button = el("button", title(event), "replay-trade-label");
       button.type = "button";
       button.dataset.kind = event.actor === "system" ? "system" : event.action;
+      button.dataset.event = event.id;
       button.title = stamp(event.time) + " · " + event.price;
       button.onclick = () => this.select(event, false);
       overlay.append(button);
@@ -587,23 +588,43 @@ export class ReplayPanel {
       button.setAttribute("aria-current", button.dataset.event === event.id ? "true" : "false");
     }
     cancelAnimationFrame(this.rangeFrame);
-    if (move && this.chart) this.revealEvents(event, this.relatedFrom);
+    const flash = this.relatedFrom ? () => this.flashEvent(event) : undefined;
+    if (move && this.chart) this.revealEvents(event, this.relatedFrom, flash);
+    else flash?.();
     this.detail(event);
   }
 
-  revealEvents(event, origin) {
+  flashEvent(event) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    requestAnimationFrame(() => {
+      if (this.selected?.id !== event.id) return;
+      const elements = this.root.querySelectorAll(
+        ".replay-row[aria-current=true], .replay-trade-label[aria-pressed=true], .replay-event-guide:last-of-type:not([hidden])"
+      );
+      for (const node of elements) {
+        node.animate([
+          {boxShadow: "0 0 0 0 #a76bd000"},
+          {boxShadow: "0 0 0 4px #914dc7"},
+          {boxShadow: "0 0 0 0 #a76bd000"},
+        ], {duration: 380, iterations: 2});
+      }
+    });
+  }
+
+  revealEvents(event, origin, after) {
     const scale = this.chart.timeScale();
     const current = scale.getVisibleLogicalRange();
     const bars = this.data.candles;
     const indices = [event, origin].filter(Boolean).map(item => bars.findIndex(bar => bar.time === item.bar)).filter(index => index >= 0);
-    if (!current || !indices.length) return;
+    if (!current || !indices.length) { after?.(); return; }
     const left = Math.min(...indices), right = Math.max(...indices);
-    if (left >= current.from && right <= current.to) return;
+    if (left >= current.from && right <= current.to) { after?.(); return; }
     const span = Math.max(current.to - current.from, right - left + 4);
     const from = Math.min(left - 2, Math.max(current.from, right + 2 - span));
     const target = {from, to: from + span};
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
       scale.setVisibleLogicalRange(target);
+      after?.();
       return;
     }
     const started = performance.now();
@@ -615,6 +636,7 @@ export class ReplayPanel {
         to: current.to + (target.to - current.to) * eased,
       });
       if (progress < 1) this.rangeFrame = requestAnimationFrame(move);
+      else after?.();
     };
     this.rangeFrame = requestAnimationFrame(move);
   }
