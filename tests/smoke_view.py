@@ -138,7 +138,8 @@ with sync_playwright() as p:
     page.wait_for_selector("#desk:not([hidden])")
     page.get_by_role("button", name="AI 复盘", exact=True).click()
     page.wait_for_selector(".replay-row")
-    assert page.locator(".replay-pairs").is_hidden()
+    single_pair = page.get_by_role("navigation", name="复盘货币对")
+    assert single_pair.get_by_role("button", name="EUR/USD", pressed=True).is_visible()
     assert page.locator(".replay-current-pair").inner_text() == "EUR/USD"
     assert not page.locator(".replay-market").evaluate("node => node.classList.contains('is-floating')")
 

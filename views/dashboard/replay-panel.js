@@ -148,10 +148,9 @@ export class ReplayPanel {
   }
 
   renderPairs(pairs, stats = [], selected = "") {
-    this.pairNav.hidden = pairs.length <= 1;
+    this.pairNav.hidden = !pairs.length;
     this.pairList.replaceChildren();
-    this.pairSelection.textContent = selected;
-    if (pairs.length <= 1) return;
+    this.pairSelection.textContent = selected || (pairs.length === 1 ? pairs[0] : "");
     const ranked = new Map(stats.filter(row => pairs.includes(row.pair)).map(row => [row.pair, row]));
     const max = Math.max(1, ...stats.map(row => row.fills));
     for (const pair of [...new Set([...ranked.keys(), ...pairs])]) {
@@ -159,7 +158,7 @@ export class ReplayPanel {
       const button = el("button", null, "replay-pair");
       button.type = "button";
       button.dataset.pair = pair;
-      button.setAttribute("aria-pressed", String(pair === selected));
+      button.setAttribute("aria-pressed", String(pair === (selected || (pairs.length === 1 ? pairs[0] : ""))));
       const sign = Math.round(net * 100) === 0 ? "flat" : net > 0 ? "gain" : "loss";
       const pnl = el("span", fills ? (sign === "loss" ? "−" : sign === "gain" ? "+" : "") + "$" + number(Math.abs(net)) : "—", "replay-pair-pnl");
       pnl.dataset.sign = sign;
