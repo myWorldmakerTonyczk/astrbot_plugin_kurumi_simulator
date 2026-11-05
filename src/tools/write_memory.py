@@ -16,7 +16,7 @@ PARAMETERS = {
             "type": "string",
             "description": "新的完整计划或经验，最多6000字符；保留仍有价值的已有内容。",
         },
-        "reason": {"type": "string", "description": "本次更新的简短说明。"},
+        "reason": {"type": "string", "description": "本次更新的简短说明，默认用原人设的语气。"},
         "user_id": {"type": "string", "description": USER_ID},
     },
     "required": ["kind", "text", "reason"],

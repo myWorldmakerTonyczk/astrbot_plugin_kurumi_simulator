@@ -5,7 +5,7 @@ from ._shared import USER_ID, build_tool, console
 
 NAME = "kurumi_open_position"
 DESCRIPTION = (
-    "用虚拟资金开仓。同一货币对支持多笔独立持仓；反向开仓是新增仓位，不自动平旧仓。"
+    "开立外汇持仓。同一货币对支持多笔独立持仓；反向开仓是新增仓位，不自动平旧仓。"
     "成功及拒绝均记日志。"
 )
 PARAMETERS = {
@@ -24,7 +24,7 @@ PARAMETERS = {
             "type": "number",
             "description": "基础货币数量，不是手数，必须大于零。",
         },
-        "reason": {"type": "string", "description": "必填简短决策理由概要。"},
+        "reason": {"type": "string", "description": "必填简短决策理由，默认用原人设的语气。"},
         "stop_loss": {
             "type": "number",
             "description": "可选止损价格，0表示不设。",

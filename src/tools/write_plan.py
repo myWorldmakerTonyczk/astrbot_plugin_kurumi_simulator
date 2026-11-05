@@ -11,8 +11,8 @@ DESCRIPTION = (
 PARAMETERS = {
     "type": "object",
     "properties": {
-        "text": {"type": "string", "description": "完整计划，1～6000字。"},
-        "reason": {"type": "string", "description": "这次调整计划的简短理由概要。"},
+        "text": {"type": "string", "description": "完整计划，1～6000字。用户无额外要求时沿用原人设口吻。"},
+        "reason": {"type": "string", "description": "这次调整计划的简短理由，默认用原人设的语气。"},
         "user_id": {"type": "string", "description": USER_ID},
     },
     "required": ["text", "reason"],

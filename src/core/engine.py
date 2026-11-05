@@ -216,7 +216,7 @@ class Engine:
             game["last_equity"] = str(initial)
             self.save(game)
             sample(self.db, game, force=True)
-            self.log(game, "human", "create", "创建虚拟游戏", {"initial": str(initial)})
+            self.log(game, "human", "create", "创建交易实例", {"initial": str(initial)})
         return game
 
     def users(self):
@@ -475,13 +475,13 @@ class Engine:
                 self.log(game, source, action, reason, {"enabled": body["enabled"]})
             elif action == "borrow":
                 if not game.get("loan_enabled", False):
-                    raise ValueError("本局尚未由人类启用虚拟贷款")
+                    raise ValueError("当前账户尚未启用贷款")
                 amount = positive(body.get("amount"))
                 principal = number(game.get("loan_principal", 0))
                 if principal + amount > number(
                     game.get("loan_limit", number(game["initial"]) * 2)
                 ):
-                    raise ValueError("超过本局虚拟贷款上限")
+                    raise ValueError("超过当前账户贷款上限")
                 game["loan_principal"] = str(principal + amount)
                 game["balance"] = str(number(game["balance"]) + amount)
                 self.log(
@@ -563,7 +563,7 @@ class Engine:
                 game,
                 "system",
                 "loan_interest",
-                "虚拟贷款按实际时间计息",
+                "贷款按实际时间计息",
                 {"total_interest": game["loan_cost"], "debt": str(debt)},
             )
             game["loan_log_at"] = now
@@ -604,7 +604,7 @@ class Engine:
                 self.close_position(
                     game,
                     worst["id"],
-                    "保证金水平低于50%，模拟强平",
+                    "保证金水平低于50%，触发强平",
                     "system",
                     kind="liquidation",
                 )

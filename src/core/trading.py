@@ -3,6 +3,12 @@
 import asyncio
 from .engine import PAIRS
 
+RECORD_VOICE = (
+    "用户没有额外要求时，报告、看盘摘要、交易理由、日志和计划默认沿用原人设的语气，"
+    "自然表达即可，不用刻意严肃或正式。用户指定了口吻或格式时按用户要求。"
+    "价格、数量、触发条件和成交结果写准确。"
+)
+
 WRITE_ACTIONS = {"open", "close", "protect", "observe", "plan", "borrow", "repay"}
 
 

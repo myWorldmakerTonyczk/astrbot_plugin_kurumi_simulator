@@ -12,9 +12,9 @@ from ..core.engine import dump
 from .llm import ensure_available, tool_loop
 from ..users.policy import change_notices
 from ..notifications.settings import DEFAULTS as NOTICE_DEFAULTS
-from ..core.trading import execute, lock_for, public_snapshot, WRITE_ACTIONS
+from ..core.trading import RECORD_VOICE, WRITE_ACTIONS, execute, lock_for, public_snapshot
 
-RULES = """你正在玩久留美模拟器，资金全部是虚拟的。保持原有人格，自行探索交易策略，可以观望。
+RULES = """你在炒外汇。保持原有人格，自行探索交易策略，可以观望。
 这是独立的后台看盘任务，不是用户新发的聊天消息；不要向用户发消息或使用发送工具。
 只通过提供的交易工具操作当前实例，不能操作其他用户或实例，不能充值、改规则、改用户身份。
 EUR/USD为一欧元值多少美元；buy看涨、sell看跌；units为基础货币数量。买ask卖bid，双边收取费用。
@@ -239,7 +239,7 @@ def make_tools(plugin, gid, expected, called, read_only=False):
         ),
         tool(
             "kurumi_trade",
-            "操作本实例；parameters为JSON，必须含reason。open含pair/side/units或margin/leverage，close/protect含position，borrow/repay含amount。保护价0取消、-1保留。observe观望也写理由。",
+            "操作本实例；parameters为JSON，必须含reason。open含pair/side/units或margin/leverage，close/protect含position，borrow/repay含amount。保护价0取消、-1保留。observe观望也写理由。用户无额外要求时，理由按原人设的口吻写。",
             dict(
                 action=dict(
                     type="string",
@@ -253,7 +253,7 @@ def make_tools(plugin, gid, expected, called, read_only=False):
         tool(
             "kurumi_write_plan",
             "写入当前完整交易计划并记录修改理由，不修改笔记",
-            dict(text=string("完整计划，最多6000字"), reason=string("简短更新理由")),
+            dict(text=string("完整计划，最多6000字。用户无额外要求时沿用原人设口吻"), reason=string("简短更新理由，默认用原人设的语气")),
             ["text", "reason"],
             plan,
         ),
@@ -320,6 +320,8 @@ async def decide(plugin, gid, trigger="手动看盘", *, events=None):
                 system_prompt=persona.system_prompt
                 + "\n\n"
                 + RULES
+                + "\n"
+                + RECORD_VOICE
                 + (
                     "\n本次仅只读复盘：游戏已结束或行情不可用，不能交易、修改计划或通知设置，只能查询资料与总结。"
                     if read_only

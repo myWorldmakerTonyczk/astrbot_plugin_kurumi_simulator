@@ -4,7 +4,7 @@ from ..core.engine import dump
 from ._shared import USER_ID, build_tool, console
 
 NAME = "kurumi_close_position"
-DESCRIPTION = "平掉指定虚拟持仓，结算盈亏与手续费，并记录理由。"
+DESCRIPTION = "平掉指定持仓，结算盈亏与手续费，并记录理由。"
 PARAMETERS = {
     "type": "object",
     "properties": {
@@ -12,7 +12,7 @@ PARAMETERS = {
             "type": "string",
             "description": "看盘工具返回的持仓id，不能填写货币对代替。",
         },
-        "reason": {"type": "string", "description": "本次平仓的简短理由。"},
+        "reason": {"type": "string", "description": "本次平仓的简短理由，默认用原人设的语气。"},
         "user_id": {"type": "string", "description": USER_ID},
     },
     "required": ["position_id", "reason"],

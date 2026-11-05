@@ -15,7 +15,7 @@ PARAMETERS = {
             "type": "string",
             "description": "看盘工具返回的持仓id。",
         },
-        "reason": {"type": "string", "description": "设置或调整保护线的理由概要。"},
+        "reason": {"type": "string", "description": "设置或调整保护线的简短理由，默认用原人设的语气。"},
         "stop_loss": {
             "type": "number",
             "description": "止损价；-1保留原设置，0取消止损，正数设置新价格。",
