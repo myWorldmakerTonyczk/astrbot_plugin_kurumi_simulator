@@ -74,8 +74,13 @@ async def execute(plugin, gid, action, body, *, already_locked=False):
         raise ValueError("本实例正在后台看盘，请稍后再操作；可以先查询状态")
 
     def commit():
-        plugin.engine.action(gid, action, body, "ai")
-        return public_snapshot(plugin, gid)
+        result = plugin.engine.action(gid, action, body, "ai")
+        # The synchronous action appends its audit entry before returning.
+        entry = plugin.engine.logs(gid, limit=1)[0]
+        receipt = dict(action=action, revision=result["revision"], log_id=entry["id"])
+        if action not in {"plan", "observe"}:
+            receipt.update(balance=entry["balance"], detail=entry["detail"])
+        return receipt
 
     if already_locked:
         return commit()
