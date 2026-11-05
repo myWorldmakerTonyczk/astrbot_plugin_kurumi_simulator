@@ -48,6 +48,7 @@ EXPECTED_TOOLS = {
     "kurumi_select_instance",
     "kurumi_write_plan",
     "kurumi_price_history",
+    "kurumi_send_review_image",
 }
 with patch.object(StarTools, "get_data_dir", return_value=Path(temporary.name)):
     # Exercise both constructor signatures used by AstrBot loaders.

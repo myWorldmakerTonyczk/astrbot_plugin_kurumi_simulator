@@ -61,7 +61,7 @@ async def review(plugin, gid, pair="", days=1, end=0, *, private=True, include_c
         pair = recent[0] if recent and recent[0] in game["pairs"] else game["pairs"][0]
     if pair not in game["pairs"] or type(days) is not int or days not in PERIOD_BY_DAYS:
         raise ValueError("请选择实例内的品种及 1、7 或 30 天")
-    now = int(time.time())
+    now = time.time()
     if type(end) is not int or not 0 <= end <= now:
         raise ValueError("复盘结束时间无效")
     end = end or now
@@ -71,7 +71,7 @@ async def review(plugin, gid, pair="", days=1, end=0, *, private=True, include_c
     provider = source(settings)
     history = {"bars": [], "warning": ""}
     if include_candles:
-        history = await plugin.history.page(settings, pair, period, end + 1, 200)
+        history = await plugin.history.page(settings, pair, period, int(end) + 1, 200)
     rows = db.execute(
         """SELECT seq,data FROM logs WHERE game=? AND created>=? AND created<=?
            AND json_extract(data,'$.action') IN ('open','close','protect','plan','observe','analysis','margin_call','end')
