@@ -142,15 +142,22 @@
 .replay-run time { font-size: .78rem; color: var(--review-muted); }
 
 .replay-current-pair { color: var(--review-muted); font-weight: 700; font-variant-numeric: tabular-nums; }
-@media (min-width: 901px) and (min-height: 700px) {
-  [data-page="replay"] .replay-main { overflow: clip; }
-  [data-page="replay"] .replay-market {
-    position: sticky; top: var(--replay-sticky-top, 80px); z-index: 12;
-    background: var(--review-paper); border-bottom: 1px solid var(--review-line);
-  }
-  [data-page="replay"] .replay-chart.is-drawn { height: clamp(360px, 49vh, 580px); }
+.replay-market {
+  background: rgb(225 239 232 / .68);
+  border-bottom: 1px solid var(--review-line);
 }
-
+.replay-market.is-floating {
+  position: fixed; right: 14px; bottom: 14px; z-index: 45;
+  width: min(500px, calc(100vw - 28px));
+  background: rgb(247 250 246 / .79); backdrop-filter: blur(6px);
+  border: 1px solid #b9cdc2; border-radius: 10px; overflow: hidden;
+  box-shadow: 0 8px 30px #24373533;
+}
+.replay-market.is-floating .replay-chart.is-drawn { height: clamp(155px, 31vh, 275px); }
+.replay-market.is-floating .replay-legend { display: none; }
+.replay-market.is-floating .replay-chart-top { padding: 6px 9px; }
+.replay-return-chart { padding: 4px 8px; font-size: .78rem; }
+.replay-return-chart[hidden] { display: none; }
 .replay-event-guide {
   position: absolute; top: 5px; z-index: 1; color: #593485; background: #f4eefa;
   border: 1px solid #8560b3; border-radius: 3px; padding: 2px 5px; font-size: .72rem;

@@ -53,11 +53,11 @@ export class ReplayPanel {
       <div class="replay-layout">
         <nav class="replay-pairs" aria-label="复盘货币对" hidden></nav>
         <div class="replay-main"><div class="replay-stats"></div>
-          <section class="replay-market" aria-label="行情与成交">
-            <div class="replay-chart-top"><strong>行情与成交</strong><span class="replay-current-pair"></span></div>
+          <div class="replay-market-slot"><section class="replay-market" aria-label="行情与成交">
+            <div class="replay-chart-top"><strong>行情与成交</strong><span class="replay-current-pair"></span><button type="button" class="replay-return-chart" hidden>回到图表</button></div>
             <p class="replay-legend" hidden></p>
             <div class="replay-chart" aria-label="品种 K 线和成交标记"></div>
-          </section>
+          </section></div>
           <section class="replay-activity" aria-label="AI 决策活动" hidden></section>
           <section class="replay-performance" aria-label="账户表现"></section>
           <div class="replay-timeline-top"><h3>决定与操作</h3>
@@ -69,15 +69,29 @@ export class ReplayPanel {
       </div>`;
     this.form = root.querySelector("form");
     this.pairNav = root.querySelector(".replay-pairs");
-    const header = root.closest(".workspace > main")?.querySelector(":scope > header");
-    if (header) {
-      const updateOffset = () => root.style.setProperty("--replay-sticky-top", header.offsetHeight + "px");
-      this.headerObserver = new ResizeObserver(updateOffset);
-      this.headerObserver.observe(header);
-      updateOffset();
-    }
+    this.market = root.querySelector(".replay-market");
+    this.marketSlot = root.querySelector(".replay-market-slot");
+    this.returnChart = root.querySelector(".replay-return-chart");
+    this.workspaceHeader = root.closest(".workspace > main")?.querySelector(":scope > header");
+    this.returnChart.onclick = () => this.marketSlot.scrollIntoView({block: "center"});
+    const trackScroll = () => {
+      cancelAnimationFrame(this.floatFrame);
+      this.floatFrame = requestAnimationFrame(() => this.updateFloatingChart());
+    };
+    window.addEventListener("scroll", trackScroll, {capture: true, passive: true});
+    window.addEventListener("resize", trackScroll);
     this.form.onsubmit = (event) => { event.preventDefault(); this.load(); };
     root.querySelector(".replay-event-filter").onchange = () => this.timeline();
+  }
+
+  updateFloatingChart() {
+    const boundary = Math.max(0, this.workspaceHeader?.getBoundingClientRect().bottom || 0);
+    const floating = !!this.chart && !this.root.hidden && this.marketSlot.getBoundingClientRect().bottom <= boundary;
+    const wasFloating = this.market.classList.contains("is-floating");
+    if (floating === wasFloating) return;
+    this.marketSlot.style.minHeight = floating ? this.market.offsetHeight + "px" : "";
+    this.market.classList.toggle("is-floating", floating);
+    this.returnChart.hidden = !floating;
   }
 
   open(scope, pairs) {
@@ -126,6 +140,7 @@ export class ReplayPanel {
     this.clearTradeLabels?.();
     this.chart?.remove();
     this.chart = null;
+    this.updateFloatingChart();
     this.root.querySelector(".replay-chart").classList.remove("is-drawn");
     this.data = null;
     this.drawActivity();
@@ -157,6 +172,7 @@ export class ReplayPanel {
       this.selected = null;
       this.relatedFrom = null;
       this.draw();
+      this.updateFloatingChart();
       this.drawPerformance();
       this.drawActivity();
       this.timeline();
@@ -172,6 +188,7 @@ export class ReplayPanel {
       this.clearTradeLabels?.();
       this.chart?.remove();
       this.chart = null;
+      this.updateFloatingChart();
       this.root.querySelector(".replay-chart").classList.remove("is-drawn");
       this.stats();
       this.timeline();
@@ -229,7 +246,7 @@ export class ReplayPanel {
     // autoSize measures the host, so give it a height before creating the chart.
     root.classList.add("is-drawn");
     const chart = this.chart = L.createChart(root, {
-      autoSize: true, layout: {background: {type: "solid", color: "#f7faf6"}, textColor: ink},
+      autoSize: true, layout: {background: {type: "solid", color: "rgba(247,250,246,0)"}, textColor: ink},
       grid: {vertLines: {color: grid}, horzLines: {color: grid}},
       rightPriceScale: {borderColor: "#d3ded4"},
       timeScale: {timeVisible: true, secondsVisible: false, borderColor: "#d3ded4",
