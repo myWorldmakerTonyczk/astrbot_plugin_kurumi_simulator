@@ -57,16 +57,21 @@ async def review(plugin, gid, pair="", days=1, end=0, *, private=True, include_c
         raise ValueError("请选择 1、7 或 30 天")
     end = end or now
     start = end - days * 86400
+    totals = db.execute(
+        """SELECT json_extract(data,'$.detail.position.pair') AS pair, count(*) AS fills,
+                  sum(coalesce(CAST(json_extract(data,'$.detail.position.pnl') AS REAL),0)
+                      - coalesce(CAST(json_extract(data,'$.detail.fee') AS REAL),0)) AS net
+           FROM logs WHERE game=? AND created BETWEEN ? AND ?
+           AND json_extract(data,'$.status')='success'
+           AND json_extract(data,'$.action') IN ('open','close')
+           GROUP BY pair ORDER BY fills DESC, max(seq) DESC""",
+        (gid, start, end),
+    )
+    pair_stats = {row["pair"]: dict(row) for row in totals if row["pair"] in game["pairs"]}
+    for instrument in game["pairs"]:
+        pair_stats.setdefault(instrument, dict(pair=instrument, fills=0, net=0))
     if not pair:
-        ranked = db.execute(
-            """SELECT json_extract(data,'$.detail.position.pair') AS pair FROM logs
-               WHERE game=? AND created BETWEEN ? AND ?
-               AND json_extract(data,'$.status')='success'
-               AND json_extract(data,'$.action') IN ('open','close')
-               GROUP BY pair ORDER BY count(*) DESC, max(seq) DESC""",
-            (gid, start, end),
-        )
-        pair = next((row[0] for row in ranked if row[0] in game["pairs"]), game["pairs"][0])
+        pair = next(iter(pair_stats))
     if pair not in game["pairs"]:
         raise ValueError("请选择实例内的品种")
     period = PERIOD_BY_DAYS[days]
@@ -141,7 +146,7 @@ async def review(plugin, gid, pair="", days=1, end=0, *, private=True, include_c
             event["position"].pop("tp", None)
     return dict(
         private=private, name=redact(game["name"]) if private else "虚拟交易复盘", pair=pair,
-        pairs=game["pairs"], period=period, days=days, start=start, end=end,
+        pairs=game["pairs"], pair_stats=list(pair_stats.values()), period=period, days=days, start=start, end=end,
         candles=[bar for bar in history["bars"] if start <= bar["time"] <= end],
         warning=history.get("warning", ""), events=sorted(events, key=lambda item: item["time"]),
         baseline=redact(baseline[0]) if private and baseline and baseline[0] else "",

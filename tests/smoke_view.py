@@ -72,7 +72,8 @@ js = """window.fixture=FIXTURE;window.AstrBotPluginView={
  if(endpoint==='diaries')return {entries:[{day:'2026-11-03',status:'success',content:'今天认真观察了行情，也和你聊了天。'}],next_before:'2026-11-03'};
  if(endpoint==='review'){
   const t=Math.floor(Date.now()/900000)*900;
-  return {pair:params.pair||'EUR/USD',period:'15m',start:t-86400,end:t+900,warning:'',candles:[
+  return {pair:params.pair||'EUR/USD',pairs:window.fixture.current.game.pairs,
+    pair_stats:window.fixture.current.game.pairs.map((pair,i)=>({pair,fills:i?2:7,net:i?3.5:-8.75})),period:'15m',start:t-86400,end:t+900,warning:'',candles:[
     {time:t-900,open:1.1,high:1.101,low:1.099,close:1.1005},{time:t,open:1.1005,high:1.102,low:1.1,close:1.101}],
     marks:[{time:t-900,equity:10000,return_rate:0,drawdown:0},{time:t,equity:9900,return_rate:-0.75,drawdown:1}],
     events:[
@@ -149,12 +150,11 @@ with sync_playwright() as p:
         colors = dict((color, count) for count, color in image.convert("RGB").getcolors(image.width * image.height))
         assert colors.get((22, 130, 117), 0) > 10, "K-line candles are not visible"
         assert colors.get((133, 90, 33), 0) > 4, "System exit marker is not visible"
-    summary = page.locator(".replay-curve-summary")
-    assert "回撤 -1.00%" in summary.inner_text()
-    page.locator(".replay-metric").select_option("return_rate")
-    assert "收益率 -0.75%" in summary.inner_text()
-    page.locator(".replay-metric").select_option("equity")
-    assert "净值 $9,900.00" in summary.inner_text()
+    performance = page.locator(".replay-performance")
+    assert performance.locator(".replay-performance-card").count() == 3
+    for value in ("$9,900.00", "-0.75%", "-1.00%"):
+        assert value in performance.inner_text()
+    assert performance.locator(".replay-performance-chart canvas").count() >= 6
     page.wait_for_function(
         "(selector) => [...document.querySelectorAll(selector)].some(canvas => canvas.getBoundingClientRect().height >= 240)",
         arg=chart_canvases,
@@ -173,6 +173,9 @@ with sync_playwright() as p:
     page.locator("#refresh").click()
     page.get_by_role("button", name="AI 复盘", exact=True).click()
     pairs = page.get_by_role("navigation", name="复盘货币对")
+    assert "7 笔成交" in pairs.get_by_role("button", name="EUR/USD").inner_text()
+    assert pairs.locator("[data-sign=loss]").count() == 1
+    assert pairs.locator("[data-sign=gain]").count() == 1
     pairs.get_by_role("button", name="GBP/USD").click()
     page.wait_for_function("document.querySelector('.replay-pair[data-pair=\"GBP/USD\"]').getAttribute('aria-pressed') === 'true'")
 

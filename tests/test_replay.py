@@ -54,6 +54,7 @@ class ReplayTests(unittest.IsolatedAsyncioTestCase):
                 engine.log(game, "ai", "open", "测试", {"position": {"pair": pair, "entry": "1.1"}})
         result = await review(plugin, game["id"], include_candles=False)
         self.assertEqual(result["pair"], "GBP/USD")
+        self.assertEqual([(r["pair"], r["fills"]) for r in result["pair_stats"]], [("GBP/USD", 2), ("EUR/USD", 1)])
         result = await review(plugin, game["id"], pair="EUR/USD", include_candles=False)
         self.assertEqual(result["pair"], "EUR/USD")
 

@@ -57,9 +57,6 @@
 .replay-trade-labels .replay-trade-label[data-kind="system"] { background: #805018; }
 .replay-trade-labels .replay-trade-label[aria-pressed="true"] { outline: 2px solid #243735; }
 
-.replay-curve-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0; padding: 0 12px 10px; font-size: .84rem; color: var(--review-muted); }
-.replay-curve-summary[hidden] { display: none; }
-.replay-curve-summary strong { color: var(--curve-color); font-size: .95rem; font-variant-numeric: tabular-nums; }
 
 .replay-layout:has(> .replay-pairs:not([hidden])) { grid-template-columns: 135px minmax(0, 1fr) clamp(235px, 26%, 420px); }
 .replay-pairs { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--review-line); border-radius: 12px; background: var(--review-paper); }
@@ -75,4 +72,23 @@
   .replay-layout:has(> .replay-pairs:not([hidden])) { grid-template-columns: minmax(0, 1fr); }
   .replay-layout:has(> .replay-pairs:not([hidden])) > .replay-detail { grid-column: 1; }
   .replay-pairs { display: flex; align-items: center; flex-wrap: wrap; }
+}
+
+.replay-pair { display: grid; gap: 4px; }
+.replay-pair small, .replay-pair-note { color: var(--review-muted); font-size: .75rem; }
+.replay-pair-pnl { font-size: .84rem; font-variant-numeric: tabular-nums; }
+.replay-pair-pnl[data-sign="gain"] { color: #12675d; }
+.replay-pair-pnl[data-sign="loss"] { color: #943550; }
+.replay-pair-volume { height: 4px; border-radius: 4px; background: linear-gradient(to right, #558e80 var(--activity), #dce5df var(--activity)); }
+.replay-performance { container-type: inline-size; padding: 14px 12px; border-top: 1px solid var(--review-line); }
+.replay-performance h3, .replay-performance h4 { margin: 0; }
+.replay-performance-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.replay-performance-card { border: 1px solid var(--review-line); border-radius: 8px; padding: 10px; overflow: hidden; }
+.replay-performance-card p { margin: 4px 0 8px; }
+.replay-performance-value { color: var(--curve-color); font-size: 1.28rem; font-variant-numeric: tabular-nums; }
+.replay-performance-chart { height: 170px; }
+.replay-performance-chart canvas { background: transparent; border-radius: 0; }
+.replay-performance-chart td { border: 0; padding: 0; }
+@container (max-width: 730px) {
+  .replay-performance-grid { grid-template-columns: minmax(0, 1fr); }
 }

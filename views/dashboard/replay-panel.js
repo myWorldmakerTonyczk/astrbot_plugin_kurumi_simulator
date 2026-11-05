@@ -9,9 +9,9 @@ const states = {
 const stamp = (value, zone = "Asia/Shanghai") => new Date(value * 1000).toLocaleString("zh-CN", {timeZone: zone, hour12: false});
 const number = (value, digits = 2) => Number(value).toLocaleString("zh-CN", {maximumFractionDigits: digits, minimumFractionDigits: digits});
 const metrics = {
+  equity: {name: "净值", hint: "此刻账户值多少美元", color: "#187d71", fill: "#dceee5", value: row => row.equity},
   drawdown: {name: "回撤", hint: "较历史峰值的跌幅", color: "#a44a65", fill: "#efdce2", value: row => -row.drawdown},
   return_rate: {name: "收益率", hint: "扣除资金流影响后的累计收益", color: "#315da4", value: row => row.return_rate},
-  equity: {name: "净值", hint: "账户净资产（美元）", color: "#187d71", fill: "#dceee5", value: row => row.equity},
 };
 const fill = (event) => event.price != null && event.status === "success";
 const title = (event) => event.kind === "liquidation" ? "模拟强平" :
@@ -40,12 +40,10 @@ export class ReplayPanel {
       <div class="replay-layout">
         <nav class="replay-pairs" aria-label="复盘货币对" hidden></nav>
         <div class="replay-main"><div class="replay-stats"></div>
-          <div class="replay-chart-top"><span>成交与行情</span><label>账户曲线 <select class="replay-metric">
-            <option value="drawdown">回撤</option><option value="return_rate">收益率</option><option value="equity">净值</option>
-          </select></label></div>
+          <div class="replay-chart-top"><strong>行情与成交</strong></div>
           <p class="replay-legend" hidden></p>
-          <p class="replay-curve-summary" aria-live="polite" hidden></p>
-          <div class="replay-chart" aria-label="K 线和账户曲线"></div>
+          <div class="replay-chart" aria-label="品种 K 线和成交标记"></div>
+          <section class="replay-performance" aria-label="账户表现"></section>
           <div class="replay-timeline-top"><h3>决定与操作</h3>
             <select class="replay-event-filter" aria-label="记录筛选"><option value="all">全部记录</option>
               <option value="trade">成交</option><option value="review">看盘与观望</option><option value="plan">策略调整</option>
@@ -56,7 +54,6 @@ export class ReplayPanel {
     this.form = root.querySelector("form");
     this.pairNav = root.querySelector(".replay-pairs");
     this.form.onsubmit = (event) => { event.preventDefault(); this.load(); };
-    root.querySelector(".replay-metric").onchange = () => this.draw();
     root.querySelector(".replay-event-filter").onchange = () => this.timeline();
   }
 
@@ -65,24 +62,42 @@ export class ReplayPanel {
     this.scope = scope;
     this.form.elements.date.value = "";
     this.requestedPair = "";
+    this.pairs = pairs;
+    this.renderPairs(pairs);
+    this.load();
+  }
+
+  renderPairs(pairs, stats = [], selected = "") {
     this.pairNav.hidden = pairs.length <= 1;
     this.pairNav.replaceChildren(el("h3", "货币对"));
-    for (const pair of pairs) {
-      const button = el("button", pair, "replay-pair");
+    if (pairs.length <= 1) return;
+    const ranked = new Map(stats.map(row => [row.pair, row]));
+    const max = Math.max(1, ...stats.map(row => row.fills));
+    for (const pair of [...new Set([...ranked.keys(), ...pairs])]) {
+      const {fills, net} = ranked.get(pair) || {fills: 0, net: 0};
+      const button = el("button", null, "replay-pair");
       button.type = "button";
       button.dataset.pair = pair;
-      button.setAttribute("aria-pressed", "false");
+      button.setAttribute("aria-pressed", String(pair === selected));
+      const sign = Math.round(net * 100) === 0 ? "flat" : net > 0 ? "gain" : "loss";
+      const pnl = el("span", fills ? (sign === "loss" ? "−" : sign === "gain" ? "+" : "") + "$" + number(Math.abs(net)) : "—", "replay-pair-pnl");
+      pnl.dataset.sign = sign;
+      const bar = el("span", null, "replay-pair-volume");
+      bar.style.setProperty("--activity", (fills / max * 100) + "%");
+      bar.setAttribute("aria-hidden", "true");
+      button.append(el("strong", pair), el("small", fills + " 笔成交"), pnl, bar);
       button.onclick = () => {
         this.requestedPair = pair;
         this.load();
       };
       this.pairNav.append(button);
     }
-    this.load();
+    this.pairNav.append(el("small", "平仓盈亏扣本期成交费", "replay-pair-note"));
   }
 
   close() {
     this.version++;
+    this.clearPerformance();
     this.scope = "";
     this.clearTradeLabels?.();
     this.chart?.remove();
@@ -105,9 +120,7 @@ export class ReplayPanel {
       const data = await this.fetchReview(this.scope, {pair: this.requestedPair, days: Number(form.days.value), end});
       if (request !== this.version) return;
       this.data = data;
-      for (const button of this.pairNav.querySelectorAll("button")) {
-        button.setAttribute("aria-pressed", String(button.dataset.pair === data.pair));
-      }
+      this.renderPairs(data.pairs || this.pairs, data.pair_stats, data.pair);
       status.textContent = [
         stamp(data.start) + " — " + stamp(data.end) + "（北京时间）",
         data.warning, data.truncated ? "记录较多，可缩短范围查看。" : "",
@@ -116,6 +129,7 @@ export class ReplayPanel {
       this.stats();
       this.selected = null;
       this.draw();
+      this.drawPerformance();
       this.timeline();
       const latest = data.events.findLast(event => fill(event) && event.actor === "ai") || data.events.findLast(fill) || data.events.at(-1);
       if (latest) this.select(latest, false);
@@ -123,6 +137,7 @@ export class ReplayPanel {
     } catch (error) {
       if (request !== this.version) return;
       this.data = null;
+      this.clearPerformance();
       this.clearTradeLabels?.();
       this.chart?.remove();
       this.chart = null;
@@ -167,16 +182,14 @@ export class ReplayPanel {
     root.classList.remove("is-drawn");
     const legend = this.root.querySelector(".replay-legend");
     legend.hidden = true;
-    const curveSummary = this.root.querySelector(".replay-curve-summary");
-    curveSummary.hidden = true;
     const data = this.data;
     if (!data) return;
     if (!window.LightweightCharts) {
       root.append(el("p", "图表组件加载失败，请刷新页面。", "replay-empty"));
       return;
     }
-    if (!data.candles.length && !data.marks.length) {
-      root.append(el("p", "这个时段暂无行情或净值采样。", "replay-empty"));
+    if (!data.candles.length) {
+      root.append(el("p", "这个时段暂无 K 线，可从下方查看操作记录。", "replay-empty"));
       return;
     }
     const L = window.LightweightCharts;
@@ -215,48 +228,10 @@ export class ReplayPanel {
       color: e.actor === "system" ? "#855a21" : e.actor === "human" ? "#636b83" : e.action === "close" ? "#b34a65" : "#168275",
       size: 1.25,
     })));
-    const metric = this.root.querySelector(".replay-metric").value;
-    const seconds = {"15m": 900, "1h": 3600, "4h": 14400}[data.period];
-    const marks = new Map();
-    for (const row of data.marks) {
-      const time = Math.floor(row.time / seconds) * seconds;
-      const previous = marks.get(time);
-      if (metric !== "drawdown" || !previous || row.drawdown >= previous.drawdown) marks.set(time, row);
-    }
-    const spec = metrics[metric];
-    const format = value => metric === "equity" ? "$" + number(value)
-      : (metric === "return_rate" && value > 0 ? "+" : "") + number(value === 0 ? 0 : value) + "%";
-    curveSummary.hidden = false;
-    curveSummary.style.setProperty("--curve-color", spec.color);
-    const latest = data.marks.at(-1);
-    curveSummary.replaceChildren(el("strong", spec.name + " " + (latest ? format(spec.value(latest)) : "—")),
-      el("span", latest ? spec.hint + " · 下方曲线 · 整个账户" : "该时段没有账户采样"));
-    if (marks.size) {
-      const options = {
-        lineColor: spec.color, color: spec.color, lineWidth: 2,
-        topColor: spec.fill, bottomColor: "#f7faf6", pointMarkersVisible: marks.size < 3,
-        priceFormat: {type: "custom", minMove: 0.01, formatter: format},
-      };
-      if (metric !== "equity") {
-        options.autoscaleInfoProvider = original => {
-          const info = original();
-          if (!info?.priceRange) return info;
-          const {minValue, maxValue} = info.priceRange;
-          return {...info, priceRange: {minValue: Math.min(0, minValue), maxValue: Math.max(0, maxValue)}};
-        };
-      }
-      const curve = chart.addSeries(spec.fill ? L.AreaSeries : L.LineSeries, options, data.candles.length ? 1 : 0);
-      curve.setData([...marks].map(([time, row]) => ({time, value: spec.value(row)})));
-      if (metric !== "equity") curve.createPriceLine({
-        price: 0, title: "0%", color: "#647488", lineWidth: 1, lineStyle: L.LineStyle.Dashed, axisLabelVisible: false,
-      });
-      if (data.candles.length) chart.panes()[1]?.setHeight(140);
-    }
     chart.subscribeClick(param => {
       if (typeof param.time !== "number") return;
       const at = trades.filter(e => e.bar === param.time);
-      if (param.paneIndex === 1 || !at.length) this.markDetail(marks.get(param.time), param.time, seconds);
-      else {
+      if (at.length) {
         const price = param.point ? candles.coordinateToPrice(param.point.y) : at[0].price;
         const hit = at.reduce((a, b) => Math.abs(a.price - price) <= Math.abs(b.price - price) ? a : b);
         this.select(hit, false);
@@ -265,6 +240,67 @@ export class ReplayPanel {
     chart.timeScale().fitContent();
     this.installTradeLabels(root, chart, candles, trades);
     this.highlight(this.selected);
+  }
+
+  clearPerformance() {
+    for (const chart of this.performanceCharts || []) chart.remove();
+    this.performanceCharts = [];
+    this.root.querySelector(".replay-performance").replaceChildren();
+  }
+
+  drawPerformance() {
+    this.clearPerformance();
+    const data = this.data;
+    const L = window.LightweightCharts;
+    const section = this.root.querySelector(".replay-performance");
+    const rows = data.marks;
+    const latest = rows.at(-1);
+    section.append(el("h3", "账户表现"), el("p", latest
+      ? "实际采样 · " + stamp(rows[0].time) + " 至 " + stamp(latest.time)
+      : "所选时段没有账户采样", "replay-muted"));
+    if (!latest || !L) return;
+    const grid = el("div", null, "replay-performance-grid");
+    section.append(grid);
+    for (const metric of ["equity", "return_rate", "drawdown"]) {
+      const spec = metrics[metric];
+      const signed = value => (metric === "return_rate" && value > 0 ? "+" : "") + number(value === 0 ? 0 : value) + "%";
+      const format = metric === "equity" ? value => "$" + number(value) : signed;
+      const card = el("article", null, "replay-performance-card");
+      card.style.setProperty("--curve-color", spec.color);
+      const current = el("strong", format(spec.value(latest)), "replay-performance-value");
+      const host = el("div", null, "replay-performance-chart");
+      const caption = metric === "drawdown"
+        ? "时段最深 " + number(Math.max(...rows.map(row => row.drawdown))) + "%"
+        : spec.hint;
+      card.append(el("h4", spec.name), current, el("p", caption, "replay-muted"), host);
+      grid.append(card);
+      const chart = L.createChart(host, {
+        autoSize: true, layout: {background: {type: "solid", color: "#f7faf6"}, textColor: "#53665c", attributionLogo: false},
+        grid: {vertLines: {visible: false}, horzLines: {color: "#e3eae4"}},
+        timeScale: {timeVisible: true, secondsVisible: false,
+          tickMarkFormatter: time => new Date(time * 1000).toLocaleString("zh-CN", {timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false})},
+        localization: {timeFormatter: time => stamp(time)},
+      });
+      this.performanceCharts.push(chart);
+      const types = {equity: L.AreaSeries, return_rate: L.BaselineSeries, drawdown: L.HistogramSeries};
+      const series = chart.addSeries(types[metric], {
+        color: spec.color, lineColor: spec.color, lineWidth: 2, topColor: spec.fill,
+        bottomColor: "#f7faf6", base: 0, baseValue: {type: "price", price: 0},
+        topLineColor: "#187d71", bottomLineColor: "#a44a65",
+        pointMarkersVisible: rows.length < 3,
+        priceFormat: {type: "custom", minMove: .01, formatter: format},
+      });
+      const byTime = new Map(rows.map(row => [row.time, row]));
+      series.setData(rows.map(row => ({time: row.time, value: spec.value(row)})));
+      chart.timeScale().fitContent();
+      chart.subscribeCrosshairMove(({time}) => {
+        current.textContent = format(spec.value(byTime.get(time) || latest));
+      });
+      chart.subscribeClick(({time}) => {
+        const mark = byTime.get(time);
+        if (mark) this.markDetail(mark, time, 60);
+      });
+    }
   }
 
   installTradeLabels(root, chart, candles, trades) {
