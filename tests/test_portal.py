@@ -1,6 +1,7 @@
 import time
 import unittest
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from aiohttp.test_utils import TestClient, TestServer
 
@@ -9,6 +10,9 @@ from src.core.engine import Engine
 from src.diary.store import DiaryStore
 from src.portal.server import COOKIE, Portal
 from src.users.identity import Identity
+from src.portal.chat import chat_owner
+from src.tools.send_panel import build
+from src.tools.send_review_image import build as build_image_tool
 
 ORIGIN = "https://panel.example.test"
 POST = {"Origin": ORIGIN}
@@ -32,6 +36,7 @@ class PortalTests(unittest.IsolatedAsyncioTestCase):
         DiaryStore(self.engine)
         DecisionService(plugin)
         self.portal = Portal(plugin)
+        plugin.portal = self.portal
         self.portal.config.update(enabled=True, origin=ORIGIN)
         self.client = TestClient(TestServer(self.portal.app(), access_log=None), headers={"Host": "panel.example.test"})
         await self.client.start_server()
@@ -120,3 +125,40 @@ class PortalTests(unittest.IsolatedAsyncioTestCase):
         self.portal.accounts.reset(owner)
         revoked = await self.client.get("/api/account", params={"game": gid}, headers=headers)
         self.assertEqual(revoked.status, 401)
+
+    async def test_existing_random_user_gets_credentials_only_at_configured_umo(self):
+        game = self.engine.create({"user_binding": {"type": "random", "values": []}})
+        gid = game["id"]
+        owner = game["owner_id"]
+        event = SimpleNamespace(
+            unified_msg_origin="qq:FriendMessage:33333",
+            get_sender_id=lambda: "33333",
+            platform_meta=SimpleNamespace(name="qq"),
+            send=AsyncMock(),
+        )
+        with self.assertRaises(ValueError):
+            chat_owner(self.portal.plugin, event)
+        with self.assertRaisesRegex(ValueError, "其他用户"):
+            self.portal.accounts.bind_chat(gid, ["qq:FriendMessage:11111"])
+        self.portal.accounts.bind_chat(gid, [event.unified_msg_origin])
+        self.assertEqual(chat_owner(self.portal.plugin, event), owner)
+        # The HTTP listener is already running under TestServer.
+        self.portal.runner = self.client.server
+        handler = build(self.portal.plugin).handler
+        result = await handler(event, "login")
+        message = event.send.await_args.args[0].chain[0].text
+        self.assertIn("首次密码", message)
+        self.assertNotIn(self.portal.accounts.username(owner), result)
+        self.assertNotIn("首次密码", result)
+        await handler(event, "login")
+        self.assertNotIn("首次密码：", event.send.await_args.args[0].chain[0].text)
+        image_result = await build_image_tool(self.portal.plugin).handler(event, "drawdown")
+        self.assertIn('"ok": true', image_result)
+        image = event.send.await_args.args[0].chain[0]
+        self.assertTrue(image.file.startswith("base64://"))
+        event.unified_msg_origin = "qq:GroupMessage:33333"
+        event.send.reset_mock()
+        await handler(event, "login")
+        event.send.assert_not_awaited()
+        self.portal.accounts.bind_chat(gid, [])
+        self.assertEqual(self.portal.accounts.username(owner), "")

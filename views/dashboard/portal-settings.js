@@ -7,6 +7,23 @@ export class PortalSettings {
     this.reset = document.getElementById("portal-reset");
     this.access = document.getElementById("portal-access");
     this.account = document.getElementById("portal-account-name");
+    this.umos = document.getElementById("portal-umos");
+    this.umoForm = document.getElementById("portal-umo-form");
+    this.umos.oninput = () => { this.bindingDirty = true; };
+    this.umoForm.onsubmit = async event => {
+      event.preventDefault();
+      const gid = this.gid;
+      if (!gid || !window.confirm("更改领取私聊会撤销该用户已发的面板链接并重置网页账号。确认保存？")) return;
+      const umos = this.umos.value.split("\n").map(line => line.trim()).filter(Boolean);
+      const button = event.submitter;
+      button.disabled = true;
+      try {
+        await post("portal-settings", {binding_game: gid, umos});
+        if (this.gid === gid) this.bindingDirty = false;
+        await reload();
+      } catch {}
+      finally { button.disabled = false; }
+    };
     this.trade.onchange = async () => {
       const gid = this.gid, allowed = this.trade.checked;
       this.trade.disabled = true;
@@ -46,7 +63,9 @@ export class PortalSettings {
   }
 
   render(config, gid, instance) {
+    if (this.gid !== gid) this.bindingDirty = false;
     this.gid = gid;
+    if (!this.bindingDirty) this.umos.value = (instance?.chat_umos || []).join("\n");
     this.access.hidden = !gid || !instance?.owned;
     this.revoke.disabled = !gid;
     this.reset.disabled = !instance?.username;

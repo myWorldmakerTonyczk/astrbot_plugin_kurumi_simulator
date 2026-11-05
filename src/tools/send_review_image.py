@@ -5,7 +5,8 @@ import asyncio
 from ..core.engine import dump
 from ..core.replay import PERIOD_BY_DAYS, review
 from ..core.replay_image import CHARTS, render_png
-from ._shared import USER_ID, bound_game, build_tool
+from ..portal.chat import chat_game, chat_owner
+from ._shared import USER_ID, build_tool
 
 NAME = "kurumi_send_review_image"
 DESCRIPTION = "用户想看复盘图时，在当前私聊直接发送所选实例的图片。工具已发图后只需简短确认。"
@@ -18,6 +19,7 @@ PARAMETERS = dict(
         days=dict(type="integer", enum=list(PERIOD_BY_DAYS), description="最近 1、7 或 30 天"),
         end=dict(type="integer", description="可选结束时间，Unix 秒。0 表示当前"),
         user_id=dict(type="string", description=USER_ID),
+        instance_id=dict(type="string", description="可选实例 ID 或列表序号"),
     ),
     required=["kind"],
     additionalProperties=False,
@@ -27,12 +29,16 @@ PARAMETERS = dict(
 def build(plugin):
     render_slots = asyncio.Semaphore(2)
 
-    async def handler(event, kind, pair="", days=1, end=0, user_id=""):
+    def owner_for(event, user_id):
+        return plugin.identity.principal(event, user_id)[0] if user_id else chat_owner(plugin, event)
+
+    async def handler(event, kind, pair="", days=1, end=0, user_id="", instance_id=""):
         from astrbot.api.event import MessageChain
         from astrbot.api.message_components import Image
 
         try:
-            game = bound_game(plugin, event, user_id)
+            owner = owner_for(event, user_id)
+            game = chat_game(plugin, event, owner, instance_id)
             if kind not in CHARTS:
                 raise ValueError("图表类型无效")
             if render_slots.locked():
@@ -42,7 +48,7 @@ def build(plugin):
                     plugin, game["id"], pair, days, end, include_candles=kind == "candles",
                 )
                 png = await asyncio.to_thread(render_png, data, kind)
-            if plugin.identity.principal(event, user_id)[0] != plugin.engine.get(game["id"]).get("owner_id"):
+            if owner_for(event, user_id) != owner or plugin.engine.get(game["id"]).get("owner_id") != owner:
                 raise ValueError("实例访问已撤销")
             await event.send(MessageChain(chain=[Image.fromBytes(png)]))
             return dump(dict(ok=True, message="已将图片发到当前私聊。"))

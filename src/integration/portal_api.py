@@ -13,6 +13,7 @@ class PortalApiMixin:
             owned=bool(game.get("owner_id")),
             trade=self.portal.accounts.trade_allowed(game),
             username=self.portal.accounts.username(game.get("owner_id")),
+            chat_umos=self.portal.accounts.chat_umos(game.get("owner_id")),
         )
 
     async def web_portal_settings(self):
@@ -24,6 +25,8 @@ class PortalApiMixin:
                 self.portal.access.revoke_links(body["revoke_game"])
             elif isinstance(body, dict) and set(body) == {"trade_game", "allowed"}:
                 self.portal.accounts.allow_trade(body["trade_game"], body["allowed"])
+            elif isinstance(body, dict) and set(body) == {"binding_game", "umos"}:
+                self.portal.accounts.bind_chat(body["binding_game"], body["umos"])
             elif isinstance(body, dict) and set(body) == {"reset_account"}:
                 game = self.engine.get(body["reset_account"])
                 if not game.get("owner_id"):

@@ -54,11 +54,11 @@ EXPECTED_TOOLS = {
 with patch.object(StarTools, "get_data_dir", return_value=Path(temporary.name)):
     # Exercise both constructor signatures used by AstrBot loaders.
     plugin = module.KurumiSimulator(context)
-    assert len(registered_tools) == 14
+    assert len(registered_tools) == len(EXPECTED_TOOLS)
     assert {tool.name for tool in registered_tools} == EXPECTED_TOOLS
     explicit = module.KurumiSimulator(context, {})
     assert len(routes) == 26
-    assert len(registered_tools) == 28
+    assert len(registered_tools) == 2 * len(EXPECTED_TOOLS)
     explicit.engine.db.close()
 
 
@@ -286,7 +286,7 @@ async def check():
     await plugin.terminate()
     temporary.cleanup()
     print(
-        "AstrBot runtime check passed: real constructors (context-only and config), 14 registered tools, lifecycle, real request context, anonymous rejection, authenticated state, secret omission, probe isolation, held-position source switching guard, stale decision invalidation."
+        "AstrBot runtime check passed: real constructors (context-only and config), 16 registered tools, lifecycle, real request context, anonymous rejection, authenticated state, secret omission, probe isolation, held-position source switching guard, stale decision invalidation."
     )
 
 

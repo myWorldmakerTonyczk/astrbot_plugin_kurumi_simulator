@@ -1,6 +1,7 @@
 """Issue panel access only to an independently bound private chat."""
 
 from ..core.engine import dump
+from ..portal.chat import chat_game, chat_owner
 from ._shared import build_tool
 
 NAME = "kurumi_send_panel"
@@ -16,31 +17,22 @@ PARAMETERS = dict(
 )
 
 
-def bound_owner(plugin, event):
-    if getattr(event.platform_meta, "name", "") == "kurumi_silent":
-        raise ValueError("仅可在已绑定的私聊领取面板")
-    try:
-        return plugin.identity.principal(event)[0]
-    except ValueError:
-        raise ValueError("请在管理员已绑定的 QQ 或 UMO 私聊领取面板") from None
-
-
 def build(plugin):
     async def handler(event, mode, instance_id=""):
         from astrbot.api.event import MessageChain
 
         try:
-            owner = bound_owner(plugin, event)
+            owner = chat_owner(plugin, event)
             if mode == "login":
                 url, username, password = await plugin.portal.account_link(owner)
-                if bound_owner(plugin, event) != owner:
-                    raise ValueError("会话绑定已变化，请重新领取")
-                lines = ["模拟交易登录面板", url, f"账号：{username}"]
-                if password:
-                    lines += [f"首次密码：{password}", "请妥善保管此密码。"]
-                else:
-                    lines += ["请使用首次领取时的密码。忘记密码可请管理员重置。"]
                 try:
+                    if chat_owner(plugin, event) != owner:
+                        raise ValueError("会话绑定已变化，请重新领取")
+                    lines = ["模拟交易登录面板", url, f"账号：{username}"]
+                    if password:
+                        lines += [f"首次密码：{password}", "请妥善保管此密码。"]
+                    else:
+                        lines += ["请使用首次领取时的密码。忘记密码可请管理员重置。"]
                     await event.send(MessageChain().message("\n".join(lines)))
                 except Exception:
                     # The first password is unrecoverable if the adapter rejects the send.
@@ -48,10 +40,7 @@ def build(plugin):
                         plugin.portal.accounts.reset(owner)
                     raise
                 return dump(dict(ok=True, message="已向当前私聊发送登录入口。"))
-            game = (
-                plugin.identity.select(event, instance_id) if instance_id
-                else plugin.identity.selected(event)
-            )
+            game = chat_game(plugin, event, owner, instance_id)
             url = plugin.portal.link(owner, game["id"], mode)
             title = "本人只读面板" if mode == "read" else "可转发的复盘摘要"
             await event.send(MessageChain().message(f"{title}\n{url}\n链接 5 分钟内可兑换一次。"))

@@ -71,6 +71,11 @@
           <details id="portal-access" hidden>
             <summary>用户网页权限</summary>
             <p id="portal-account-name" class="caption"></p>
+            <form id="portal-umo-form">
+              <label>领取面板的私聊 UMO<textarea id="portal-umos" rows="2" placeholder="default:FriendMessage:123456789"></textarea></label>
+              <p class="caption">每行一个。填了以后，仅这些私聊可领取。留空沿用用户已有 QQ / UMO 绑定。</p>
+              <button type="submit">保存领取私聊</button>
+            </form>
             <label class="check"><input type="checkbox" id="portal-trade">允许该用户在网页模拟交易</label>
             <button type="button" id="portal-revoke">撤销只读链接</button>
             <button type="button" id="portal-reset">重置用户网页账号</button>

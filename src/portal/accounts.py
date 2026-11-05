@@ -8,6 +8,8 @@ import secrets
 import time
 from collections import deque
 
+from ..users.ownership import normalize
+
 ACCOUNT_TTL = 8 * 3600
 USERNAME = re.compile(r"krm-user-[0-9a-f]{12}")
 
@@ -29,7 +31,39 @@ class PortalAccounts:
         CREATE TABLE IF NOT EXISTS portal_trade(
           game TEXT PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
           owner TEXT NOT NULL REFERENCES sim_users(id) ON DELETE CASCADE);
+        CREATE TABLE IF NOT EXISTS portal_chat(
+          umo TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES sim_users(id) ON DELETE CASCADE);
+        CREATE INDEX IF NOT EXISTS portal_chat_owner ON portal_chat(owner);
         """)
+
+    def owner_for_umo(self, umo):
+        row = self.db.execute("SELECT owner FROM portal_chat WHERE umo=?", (umo,)).fetchone()
+        return row[0] if row else None
+
+    def chat_umos(self, owner):
+        return [row[0] for row in self.db.execute("SELECT umo FROM portal_chat WHERE owner=? ORDER BY umo", (owner,))]
+
+    def bind_chat(self, gid, umos):
+        game = self.access.engine.get(gid)
+        owner = game.get("owner_id")
+        if not owner:
+            raise ValueError("请先绑定实例用户")
+        if not isinstance(umos, list):
+            raise ValueError("私聊 UMO 须为列表")
+        values = normalize({"type": "umo", "values": umos})["values"] if umos else []
+        if sorted(values) == self.chat_umos(owner):
+            return
+        with self.access.engine.transaction():
+            for umo in values:
+                existing = self.owner_for_umo(umo)
+                alias = self.db.execute("SELECT user_id FROM sim_user_aliases WHERE alias=?", ("umo:" + umo,)).fetchone()
+                if (existing and existing != owner) or (alias and alias[0] != owner):
+                    raise ValueError("所填 UMO 已绑定到其他用户")
+            self.db.execute("DELETE FROM portal_chat WHERE owner=?", (owner,))
+            self.db.executemany("INSERT INTO portal_chat VALUES(?,?)", ((umo, owner) for umo in values))
+            self.db.execute("DELETE FROM portal_grants WHERE owner=?", (owner,))
+            self.db.execute("DELETE FROM portal_sessions WHERE owner=?", (owner,))
+            self.db.execute("DELETE FROM portal_accounts WHERE owner=?", (owner,))
 
     def username(self, owner):
         row = self.db.execute("SELECT username FROM portal_accounts WHERE owner=?", (owner,)).fetchone()
