@@ -41,6 +41,7 @@ export function renderInstanceDirectory(
   selectedId,
   onSelect,
   onDelete = () => {},
+  onCreate = () => {},
 ) {
   const make = (tag, text, cls) => {
     const n = document.createElement(tag);
@@ -67,11 +68,18 @@ export function renderInstanceDirectory(
     );
     if (group.publicId)
       copy.append(make("code", group.publicId, "user-public-id"));
-    heading.append(
-      avatar,
-      copy,
-      make("span", "展开 / 收起", "group-toggle-label"),
-    );
+    heading.append(avatar, copy);
+    if (group.publicId) {
+      const create = make("button", "新增实例", "user-create-instance");
+      create.type = "button";
+      create.setAttribute("aria-label", `为 ${group.name} 新增实例`);
+      create.onclick = event => {
+        event.preventDefault();
+        onCreate(group);
+      };
+      heading.append(create);
+    }
+    heading.append(make("span", "展开 / 收起", "group-toggle-label"));
     section.append(heading);
     const list = make("div", undefined, "instance-card-grid");
     if (!group.instances.length)

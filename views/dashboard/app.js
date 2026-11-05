@@ -188,13 +188,14 @@ function renderCatalog() {
     hasInstances = state.games.length > 0;
   $("empty").hidden = hasInstances;
   $("catalog-heading").hidden = !hasInstances;
-  $("instance-directory").hidden = !hasInstances;
+  $("instance-directory").hidden = !hasInstances && !state.workspace?.users?.length;
   renderInstanceDirectory(
     $("instance-directory"),
     groups,
     gid,
     selectInstance,
     openDeleteInstance,
+    openCreateInstance,
   );
   const owner = groups.find((g) => g.instances.some((i) => i.id === gid));
   const instance = owner?.instances.find((i) => i.id === gid);
@@ -826,7 +827,7 @@ submit("create", async (p) => {
       name: p.name,
       persona: p.persona,
       auto: $("create-auto").checked,
-      user_binding: collectUserBinding(p),
+      user_binding: createOwnerBinding || collectUserBinding(p),
       user_nickname: p.user_nickname || "",
       initial: p.initial,
       leverage: p.leverage,
@@ -970,14 +971,22 @@ $("confirm-rotate-user").onclick = async () => {
     await load();
   } catch {}
 };
-function openCreateInstance() {
+let createOwnerBinding = null;
+function openCreateInstance(group = null) {
+  const user = group && state.workspace.users.find(item => String(item.id) === group.id);
+  const binding = user?.bindings?.find(item => item.type === "umo") || user?.bindings?.find(item => item.type === "qq");
+  createOwnerBinding = user ? (binding ? {type: binding.type, values: [binding.value]} : {type: "random", values: [user.public_id]}) : null;
+  $("create-user-fields").hidden = !!user;
+  $("create-user-fields").disabled = !!user;
+  $("create-owner").hidden = !user;
+  $("create-owner").textContent = user ? "所属用户：" + user.name : "";
   options($("create-persona"), [{ id: "", name: "请选择人格" }, ...(state?.personas || [])], "");
   $("create-auto").checked = true;
   $("create-instance-dialog").showModal();
   tradingNotices.setScope("");
 }
 for (const button of document.querySelectorAll("[data-new-instance]"))
-  button.onclick = openCreateInstance;
+  button.onclick = () => openCreateInstance();
 for (const button of document.querySelectorAll("[data-close-dialog]"))
   button.onclick = () => $(button.dataset.closeDialog).close();
 for (const id of [

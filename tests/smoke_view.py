@@ -707,12 +707,17 @@ with sync_playwright() as p:
     assert page.locator('.instance-card[data-instance-id="alice-two"]').count() == 1
     assert page.locator('.instance-card[data-instance-id="bob-one"]').count() == 0
     page.evaluate(
-        "window.fixture.games=[];window.fixture.current=null;window.instanceSnapshots={}"
+        "window.fixture.games=[];window.fixture.current=null;window.instanceSnapshots={};"
+        "window.fixture.workspace={users:[{id:'managed-user',name:'测试用户',public_id:'krm_11111111111111111111'}]}"
     )
     page.locator("#refresh").click()
     page.wait_for_selector("#empty:not([hidden])")
     assert "给她一笔资金，看看故事会怎样。" in page.locator("#empty").inner_text()
-    assert page.locator("#instance-directory").is_hidden()
+    user_create = page.locator("#instance-directory .user-create-instance").first
+    user_create.click()
+    assert page.locator("#create-owner").is_visible()
+    assert page.locator("#create-user-fields").is_hidden()
+    page.locator("[data-close-dialog=create-instance-dialog]").click()
     assert page.locator(".workspace>aside").is_hidden()
     page.screenshot(path=str(out / "workspace-welcome.png"), full_page=True)
     page.get_by_role("button", name="创建第一局", exact=True).click()

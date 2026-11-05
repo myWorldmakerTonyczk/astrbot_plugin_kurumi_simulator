@@ -1037,7 +1037,7 @@ main {
   font-size: 13px;
   color: var(--muted);
 }
-#pairs {
+#pairs, #instance-trading-pairs {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
@@ -1080,7 +1080,7 @@ main {
     grid-column: auto;
     display: block;
   }
-  #pairs {
+  #pairs, #instance-trading-pairs {
     grid-template-columns: 1fr;
   }
 }
@@ -1393,6 +1393,8 @@ main {
   font-size: 12px;
   color: var(--muted);
 }
+.user-create-instance { margin-left: auto; flex-shrink: 0; }
+.user-create-instance + .group-toggle-label { margin-left: 0; }
 .group-toggle-label {
   margin-left: auto;
   font-size: 11px;
