@@ -633,7 +633,7 @@
           </div>
         </section>
         <footer>
-          久留美模拟器 · v1.0.1　<span>没有有效行情时不会产生模拟成交</span>
+          久留美模拟器 · v1.1.0　<span>没有有效行情时不会产生模拟成交</span>
         </footer>
       </main>
     </div>
@@ -665,13 +665,6 @@
               绑定用户 <span class="required-mark">（必填）</span>
             </legend>
             <label
-              >填写方式<select id="user-binding-type" name="user_binding_type">
-                <option value="umo">会话 UMO 列表（推荐）</option>
-                <option value="qq">QQ号</option>
-                <option value="random">随机用户ID</option>
-              </select></label
-            >
-            <label data-binding-kind="umo"
               >会话 UMO 列表<textarea
                 id="bound-umos"
                 name="bound_umos"
@@ -689,29 +682,7 @@
                 >每行一条，最多20条。填写多条表示它们属于同一用户；推荐使用UMO以区分机器人和会话。</span
               ></label
             >
-            <label data-binding-kind="qq" hidden
-              >QQ号<input
-                id="bound-qq"
-                name="bound_qq"
-                inputmode="numeric"
-                pattern="[1-9][0-9]{4,11}"
-                maxlength="12"
-                disabled
-                placeholder="请输入QQ号"
-              /><span class="caption"
-                >QQ号方式不区分具体机器人；与UMO方式不自动合并用户。</span
-              ></label
-            >
-            <label data-binding-kind="random" hidden
-              >已有用户ID（选填）<input
-                id="bound-random-id"
-                name="bound_random_id"
-                disabled
-                placeholder="留空由管理员自动生成新用户ID"
-              /><span class="caption"
-                >创建后会在后台用户列表明文显示。给同一虚拟用户再开一盘时，可填写已有ID。用户将ID交给LLM后，工具每次通过user_id参数携带。</span
-              ></label
-            ><label
+            <label
               >用户昵称（选填）<input
                 name="user_nickname"
                 maxlength="40"

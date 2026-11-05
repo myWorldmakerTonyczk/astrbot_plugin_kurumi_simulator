@@ -359,16 +359,9 @@ with sync_playwright() as p:
     assert page.locator("#create-persona").input_value() == ""
     assert page.locator("#create-persona").get_attribute("required") is not None
     page.locator("#create-persona").select_option("test")
-    assert page.locator("#user-binding-type").input_value() == "umo"
     assert page.locator("#bound-umos").get_attribute("required") is not None
-    assert "/sid" in page.locator("[data-binding-kind=umo]").inner_text()
-    page.locator("#user-binding-type").select_option("qq")
-    page.locator("#bound-qq").fill("123456789")
-    assert page.locator("#bound-umos").is_disabled()
-    page.locator("#user-binding-type").select_option("random")
-    assert page.locator("#bound-random-id").is_enabled()
-    assert not page.locator("#bound-random-id").get_attribute("required")
-    page.locator("#user-binding-type").select_option("umo")
+    assert "/sid" in page.locator("#create-user-fields").inner_text()
+    assert page.locator("#user-binding-type, #bound-qq, #bound-random-id").count() == 0
     page.locator("#bound-umos").fill("default:FriendMessage:123456789")
     page.screenshot(path=str(out / "new-instance-dialog.png"), full_page=True)
     assert page.locator("#create [name=leverage]").input_value() == "100"
@@ -397,41 +390,8 @@ with sync_playwright() as p:
         page.evaluate("window.lastRequest.body.options.user_binding.values[0]")
         == "default:FriendMessage:123456789"
     )
-    assert (
-        page.evaluate(
-            "[...document.querySelectorAll('#user-binding-type option')].map(o=>o.value)"
-        )
-        == ["umo", "qq", "random"]
-    )
-
     page.wait_for_selector("#replay:not([hidden])")
     assert page.locator("#create-instance-dialog").is_hidden()
-    for kind, value in [("qq", "123456789"), ("random", "")]:
-        page.locator("#back-to-catalog").click()
-        page.get_by_role("button", name="新建实例", exact=True).click()
-        page.locator("#create-persona").select_option("test")
-        page.locator("#user-binding-type").select_option(kind)
-        if kind == "qq":
-            page.locator("#bound-qq").fill(value)
-        else:
-            page.locator("#bound-random-id").fill(value)
-        page.get_by_role("button", name="创建交易实例", exact=True).click()
-        page.wait_for_function(
-            "(kind)=>window.lastRequest?.body?.options?.user_binding?.type===kind",
-            arg=kind,
-        )
-        if kind == "random":
-            assert (
-                page.evaluate("window.lastRequest.body.options.user_binding.values")
-                == []
-            )
-        else:
-            assert (
-                page.evaluate("window.lastRequest.body.options.user_binding.values[0]")
-                == value
-            )
-        page.wait_for_selector("#create-instance-dialog:not([open])", state="attached")
-        page.wait_for_selector("#replay:not([hidden])")
     page.locator("#open-instance-settings").click()
     page.wait_for_selector("#instance-settings-dialog[open]")
     page.screenshot(path=str(out / "instance-settings-dialog.png"), full_page=True)

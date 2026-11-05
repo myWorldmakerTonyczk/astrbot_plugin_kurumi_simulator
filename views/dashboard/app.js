@@ -884,34 +884,12 @@ $("pairs-all").onclick = () => {
   $("pairs").querySelectorAll("input").forEach((i) => (i.checked = true));
   updatePairCount();
 };
-function userBindingFields() {
-  const kind = $("user-binding-type").value;
-  for (const row of document.querySelectorAll("[data-binding-kind]")) {
-    row.hidden = row.dataset.bindingKind !== kind;
-    for (const field of row.querySelectorAll("input,textarea")) {
-      field.disabled = row.hidden;
-      field.required = !row.hidden && kind !== "random";
-    }
-  }
-}
 function collectUserBinding(p) {
-  const type = p.user_binding_type;
-  if (type === "umo")
-    return {
-      type,
-      values: (p.bound_umos || "")
-        .split(/\r?\n/)
-        .map((s) => s.trim())
-        .filter(Boolean),
-    };
-  if (type === "qq") return { type, values: [(p.bound_qq || "").trim()] };
   return {
-    type: "random",
-    values: p.bound_random_id?.trim() ? [p.bound_random_id.trim()] : [],
+    type: "umo",
+    values: (p.bound_umos || "").split(/\r?\n/).map(value => value.trim()).filter(Boolean),
   };
 }
-$("user-binding-type").onchange = userBindingFields;
-userBindingFields();
 let pendingDeletion = null;
 function openDeleteInstance(instance) {
   pendingDeletion = { id: instance.id, name: instance.name };
