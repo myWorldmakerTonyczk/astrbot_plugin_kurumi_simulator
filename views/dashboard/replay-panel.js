@@ -21,6 +21,7 @@ const toolNames = {
   close: "平仓", protect: "调整保护线", observe: "记录观望", plan: "更新策略",
   diary: "查日记", notifications: "通知设置", borrow: "借款", repay: "还款",
 };
+const activityActions = new Set(["open", "close", "protect", "plan", "borrow", "repay"]);
 const taskKind = event => event.outcome === "已成交" ? "fill"
   : event.outcome === "已记录观望" ? "observe"
   : event.status === "failed" || event.outcome === "操作未执行" ? "fail"
@@ -346,6 +347,17 @@ export class ReplayPanel {
       return;
     }
     const keys = Object.keys(activityKinds);
+    const ledgerCounts = new Map();
+    for (const event of data.events) {
+      if (event.job && event.actor === "ai" && event.status === "success" && activityActions.has(event.action)) {
+        ledgerCounts.set(event.job, (ledgerCounts.get(event.job) || 0) + 1);
+      }
+    }
+    const operations = new Map(jobs.map(event => [
+      event.id,
+      Math.max((event.tools || []).filter(tool => activityActions.has(tool)).length, ledgerCounts.get(event.job) || 0),
+    ]));
+    const countOperations = events => events.reduce((total, event) => total + operations.get(event.id), 0);
     const duration = data.end - data.start;
     const step = duration <= 2 * 86400 ? 3600 : duration <= 8 * 86400 ? 21600 : 86400;
     const bins = Array.from({length: Math.max(1, Math.ceil(duration / step))}, () => []);
@@ -361,23 +373,24 @@ export class ReplayPanel {
       badge.dataset.kind = key;
       legend.append(badge);
     }
-    const intro = el("p", "每格 " + (step === 86400 ? "1 天" : step / 3600 + " 小时") + " · 点击查看该时段的任务", "replay-muted");
+    const intro = el("p", "每格 " + (step === 86400 ? "1 天" : step / 3600 + " 小时") + " · 柱高为实际操作数，圆点表示有任务但没有操作", "replay-muted");
     const strip = el("div", null, "replay-activity-strip");
     const list = el("div", null, "replay-activity-runs");
-    const max = Math.max(...bins.map(events => events.length));
+    const max = Math.max(1, ...bins.map(countOperations));
     const labels = new Intl.DateTimeFormat("zh-CN", {timeZone: "Asia/Shanghai",
       ...(step === 86400 ? {month: "numeric", day: "numeric"} : {hour: "2-digit", minute: "2-digit", hour12: false})});
     const buttons = [];
     const show = index => {
       for (const [i, button] of buttons.entries()) button.setAttribute("aria-pressed", String(i === index));
       const start = data.start + index * step, end = Math.min(start + step, data.end);
-      list.replaceChildren(el("strong", stamp(start) + " — " + stamp(end)));
+      list.replaceChildren(el("strong", stamp(start) + " — " + stamp(end) + " · " + countOperations(bins[index]) + " 次操作"));
       if (!bins[index].length) list.append(el("p", "这段时间没有保存的看盘任务。", "replay-muted"));
       for (const event of bins[index]) {
         const button = el("button", null, "replay-run");
         button.type = "button";
-        button.append(el("time", stamp(event.time)), el("strong", title(event)));
-        const status = el("span", event.outcome || states[event.status] || event.status);
+        const result = event.outcome || states[event.status] || event.status;
+        button.append(el("time", stamp(event.time)), el("strong", event.reason === "定时看盘" ? result : title(event)));
+        const status = el("span", operations.get(event.id) + " 次操作");
         status.dataset.kind = taskKind(event);
         button.append(status);
         button.onclick = () => this.select(event);
@@ -388,17 +401,28 @@ export class ReplayPanel {
       const button = el("button", null, "replay-activity-bin");
       button.type = "button";
       const start = data.start + index * step;
-      button.setAttribute("aria-label", stamp(start) + " 起，" + events.length + " 个看盘任务");
+      const count = countOperations(events);
+      button.setAttribute("aria-label", stamp(start) + " 起，" + count + " 次操作，" + events.length + " 个任务");
       const stack = el("span", null, "replay-activity-stack");
+      const dots = el("span", null, "replay-activity-dots");
       for (const key of keys) {
-        const count = events.filter(event => taskKind(event) === key).length;
-        if (!count) continue;
-        const bar = el("span");
-        bar.dataset.kind = key;
-        bar.style.height = (count / max * 100) + "%";
-        stack.append(bar);
+        const matching = events.filter(event => taskKind(event) === key);
+        if (!matching.length) continue;
+        const actions = countOperations(matching);
+        if (actions) {
+          const bar = el("span");
+          bar.dataset.kind = key;
+          bar.style.height = (actions / max * 100) + "%";
+          stack.append(bar);
+        }
+        if (matching.some(event => operations.get(event.id) === 0)) {
+          const dot = el("span");
+          dot.dataset.kind = key;
+          dots.append(dot);
+        }
       }
-      button.append(stack, el("small", index % 4 === 0 ? labels.format(start * 1000) : ""));
+      if (count) stack.append(el("b", count, "replay-activity-count"));
+      button.append(stack, dots, el("small", index % 4 === 0 ? labels.format(start * 1000) : ""));
       button.onclick = () => show(index);
       strip.append(button);
       buttons.push(button);

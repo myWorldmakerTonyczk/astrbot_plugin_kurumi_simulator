@@ -139,6 +139,9 @@ with sync_playwright() as p:
     page.get_by_role("button", name="AI 复盘", exact=True).click()
     page.wait_for_selector(".replay-row")
     assert page.locator(".replay-pairs").is_hidden()
+    assert page.locator(".replay-current-pair").inner_text() == "EUR/USD"
+    assert page.locator(".replay-market").evaluate("node => getComputedStyle(node).position") == "sticky"
+
     chart_canvases = ".replay-chart canvas"
     page.wait_for_function(
         "(selector) => [...document.querySelectorAll(selector)].some(canvas => canvas.getBoundingClientRect().height >= 240)",
@@ -146,7 +149,11 @@ with sync_playwright() as p:
     )
     page.locator(".replay-trade-label").get_by_text("开仓", exact=True).wait_for()
     page.wait_for_function("document.querySelector('.replay-arc-ink')?.getAttribute('d')?.includes(' C ')")
-    page.get_by_role("button", name="触发止盈", exact=True).click()
+    open_label = page.get_by_role("button", name="开仓", exact=True)
+    before_jump = open_label.evaluate("node => node.offsetLeft")
+    page.locator(".replay-related").get_by_text("触发止盈", exact=True).click()
+    page.wait_for_selector(".replay-event-guide:not([hidden])")
+    assert open_label.evaluate("node => node.offsetLeft") == before_jump
     assert "触发止盈" in page.locator(".replay-detail").inner_text()
     with Image.open(BytesIO(page.locator(".replay-chart").screenshot())) as image:
         colors = dict((color, count) for count, color in image.convert("RGB").getcolors(image.width * image.height))
@@ -172,7 +179,7 @@ with sync_playwright() as p:
     assert "等待突破" in page.locator(".replay-detail").inner_text()
     activity = page.get_by_role("region", name="AI 决策活动")
     assert "观望 1" in activity.inner_text()
-    activity.get_by_role("button", name="定时看盘", exact=False).click()
+    activity.get_by_role("button", name="已记录观望", exact=False).click()
     assert "从入队到结束 6 秒" in page.locator(".replay-detail").inner_text()
     assert "记录观望 × 1" in page.locator(".replay-detail").inner_text()
 
