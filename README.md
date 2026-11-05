@@ -72,6 +72,7 @@ AstrBot插件视图内提供交易工作台、交易日志、计划与经验。K
 - [每日日记、资料范围和补写](docs/DIARY.md)
 - [源码结构](src/README.md)
 - [配图说明](docs/ARTWORK.md)
+- [AI 复盘、聊天发图和独立用户面板](docs/PORTAL.md)
 - [更新记录](CHANGELOG.md)
 
 角色素材由用户提供，相关角色与素材版权归原权利人。图表使用Lightweight Charts，许可证随插件保留在views/dashboard/vendor。

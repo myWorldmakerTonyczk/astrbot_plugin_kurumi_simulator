@@ -329,7 +329,7 @@ function render() {
     for(const key of ["stop_loss","take_profit","liquidation","margin_call","end"])form.elements[key].checked=v[key];
   }
   instanceNotices.render(state.instance_access, gid);
-  portalSettings.render(state.portal, gid);
+  portalSettings.render(state.portal, gid, state.portal_instance);
   showSettings(settingsPage);
   workspace(workspaceMode);
   if (!$("pairs").children.length) {

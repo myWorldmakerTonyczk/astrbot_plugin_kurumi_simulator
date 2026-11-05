@@ -18,4 +18,29 @@ body { margin: 0; }
 #portal-exchange { background: #167064; color: #fff; border-color: #167064; }
 #portal-exchange:hover { background: #105448; }
 #portal-status { color: #53665c; }
-#portal-status[data-error="true"] { color: #9b344a; }
+#portal-status[data-error="true"], .desk-status[data-error="true"] { color: #9b344a; }
+#portal-login, .desk-order, .desk-positions form { display: grid; gap: 12px; }
+#portal-login label, .desk-order label, .desk-positions form label { display: grid; gap: 5px; }
+#portal-login input { width: 100%; }
+#portal-login button, .desk-order > button { justify-self: start; background: #167064; color: white; }
+#portal-login button:hover, .desk-order > button:hover { background: #105448; }
+.portal-tabs, .portal-desk-heading { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; }
+.portal-tabs [aria-pressed=true] { color: white; background: #167064; border-color: #167064; }
+.portal-tabs [aria-pressed=true]:hover { background: #105448; }
+.portal-desk-heading { justify-content: space-between; }
+.portal-desk-heading h2, .portal-desk-heading p { margin: 4px 0; }
+.portal-desk-heading p, .desk-status, .desk-quote { color: #53665c; }
+.portal-desk-grid { display: grid; grid-template-columns: minmax(0, 390px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.desk-positions { grid-column: 2; min-width: 0; }
+.desk-order[hidden] + .desk-positions { grid-column: 1 / -1; }
+.desk-positions .portal-card { margin: 0 0 10px; padding: 14px; max-width: none; }
+.desk-positions h3, .desk-positions h4, .desk-order h3 { margin: 0 0 8px; }
+.desk-fields, .desk-balances { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.desk-fields input, .desk-fields select { width: 100%; }
+.desk-balances { grid-template-columns: repeat(3,minmax(0,1fr)); margin: 14px 0; }
+.desk-balances div { display: grid; gap: 4px; background: #e1ede4; border-radius: 8px; padding: 10px 12px; }
+.desk-balances span { font-size: .82rem; color: #53665c; }
+.desk-balances strong { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.desk-positions details form { margin-top: 10px; }
+.desk-positions summary { cursor: pointer; }
+@media (max-width: 760px) { .portal-desk-grid { grid-template-columns: minmax(0,1fr); } .desk-positions { grid-column: 1; } }

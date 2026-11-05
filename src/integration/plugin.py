@@ -226,6 +226,7 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                 connection=public_settings(self.settings()),
                 diary_settings=self.diary.config(),
                 portal=self.portal.public(),
+                portal_instance=self.portal_instance(gid) if exists else None,
                 decision_limits=self.decisions.config(),
                 decision=self.decisions.state(gid) if exists else None,
                 llm_settings=llm.public(self.settings().get("llm")),

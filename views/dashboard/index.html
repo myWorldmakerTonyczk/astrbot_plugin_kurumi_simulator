@@ -68,7 +68,13 @@
         <div class="instance-context" id="instance-context" hidden>
           <span id="instance-breadcrumb" class="caption"></span
           ><button type="button" id="open-instance-settings">实例设置</button>
-          <button type="button" id="portal-revoke" title="撤销这个实例的只读链接和会话">撤销只读链接</button>
+          <details id="portal-access" hidden>
+            <summary>用户网页权限</summary>
+            <p id="portal-account-name" class="caption"></p>
+            <label class="check"><input type="checkbox" id="portal-trade">允许该用户在网页模拟交易</label>
+            <button type="button" id="portal-revoke">撤销只读链接</button>
+            <button type="button" id="portal-reset">重置用户网页账号</button>
+          </details>
         </div>
         <div id="notice" role="status" aria-live="polite">
           正在连接 AstrBot…

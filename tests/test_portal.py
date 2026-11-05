@@ -1,3 +1,4 @@
+import time
 import unittest
 from types import SimpleNamespace
 
@@ -7,6 +8,7 @@ from src.agent.decisions import DecisionService
 from src.core.engine import Engine
 from src.diary.store import DiaryStore
 from src.portal.server import COOKIE, Portal
+from src.users.identity import Identity
 
 ORIGIN = "https://panel.example.test"
 POST = {"Origin": ORIGIN}
@@ -23,12 +25,15 @@ class PortalTests(unittest.IsolatedAsyncioTestCase):
         async def page(*args):
             return {"bars": []}
 
-        plugin = SimpleNamespace(engine=self.engine, settings=lambda: {}, history=SimpleNamespace(page=page))
+        plugin = SimpleNamespace(
+            engine=self.engine, settings=lambda: {}, history=SimpleNamespace(page=page),
+            instance_locks={}, identity=Identity(self.engine),
+        )
         DiaryStore(self.engine)
         DecisionService(plugin)
         self.portal = Portal(plugin)
         self.portal.config.update(enabled=True, origin=ORIGIN)
-        self.client = TestClient(TestServer(self.portal.app()))
+        self.client = TestClient(TestServer(self.portal.app(), access_log=None), headers={"Host": "panel.example.test"})
         await self.client.start_server()
         self.addAsyncCleanup(self.client.close)
 
@@ -74,3 +79,44 @@ class PortalTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["baseline"], "")
         self.assertEqual(data["diaries"], [])
         self.assertNotIn("本人的私人策略", str(data))
+
+    async def test_account_login_and_trade_require_owner_and_explicit_grant(self):
+        owner = self.first["owner_id"]
+        gid = self.first["id"]
+        user, password = await self.portal.accounts.issue(owner)
+        self.assertTrue(password)
+        self.assertEqual(await self.portal.accounts.issue(owner), (user, ""))
+        wrong = await self.client.post("/api/login", json={"username": user, "password": "wrong"}, headers=POST)
+        self.assertEqual(wrong.status, 401)
+        logged_in = await self.client.post("/api/login", json={"username": user, "password": password}, headers=POST)
+        self.assertEqual(logged_in.status, 200)
+        headers = POST | {"Cookie": f"{COOKIE}={logged_in.cookies[COOKIE].value}"}
+        response = await self.client.get("/api/session", headers=headers)
+        self.assertEqual([g["id"] for g in (await response.json())["games"]], [gid])
+        foreign = await self.client.get("/api/account", params={"game": self.other["id"]}, headers=headers)
+        self.assertEqual(foreign.status, 403)
+        payload = {
+            "action": "open", "request_id": "0123456789abcdef",
+            "params": {"pair": "EUR/USD", "side": "buy", "units": "1000", "reason": "网页测试"},
+        }
+        refused = await self.client.post("/api/action", params={"game": gid}, json=payload, headers=headers)
+        self.assertEqual(refused.status, 403)
+        self.portal.accounts.allow_trade(gid, True)
+        read_only = await self.exchange("read")
+        refused = await self.client.post("/api/action", params={"game": gid}, json=payload, headers=POST | read_only)
+        self.assertEqual(refused.status, 403)
+        self.engine.quotes["EUR/USD"] = dict(bid="1.1", ask="1.1002", timestamp=time.time(), tradeable=True)
+        for _ in range(2):
+            filled = await self.client.post("/api/action", params={"game": gid}, json=payload, headers=headers)
+            self.assertEqual(filled.status, 200, await filled.text())
+        self.assertEqual(len(self.engine.get(gid)["positions"]), 1)
+        blocked = await self.client.post(
+            "/api/action", params={"game": gid}, json=dict(payload, action="deposit"), headers=headers,
+        )
+        self.assertEqual(blocked.status, 403)
+        self.portal.accounts.allow_trade(gid, False)
+        refused = await self.client.post("/api/action", params={"game": gid}, json=payload, headers=headers)
+        self.assertEqual(refused.status, 403)
+        self.portal.accounts.reset(owner)
+        revoked = await self.client.get("/api/account", params={"game": gid}, headers=headers)
+        self.assertEqual(revoked.status, 401)
