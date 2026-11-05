@@ -205,6 +205,10 @@ with sync_playwright() as p:
     assert "7 笔成交" in pairs.get_by_role("button", name="EUR/USD").inner_text()
     assert pairs.locator("[data-sign=loss]").count() == 1
     assert pairs.locator("[data-sign=gain]").count() == 1
+    pairs.locator("summary").click()
+    assert pairs.get_by_role("button", name="EUR/USD").is_hidden()
+    assert pairs.locator(".replay-pair-selection").inner_text() == "EUR/USD"
+    pairs.locator("summary").click()
     pairs.get_by_role("button", name="GBP/USD").click()
     page.wait_for_function("document.querySelector('.replay-pair[data-pair=\"GBP/USD\"]').getAttribute('aria-pressed') === 'true'")
 

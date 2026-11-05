@@ -51,7 +51,11 @@ export class ReplayPanel {
         <button type="submit">查看</button></form></div>
       <p class="replay-status" role="status"></p>
       <div class="replay-layout">
-        <nav class="replay-pairs" aria-label="复盘货币对" hidden></nav>
+        <nav class="replay-pairs" aria-label="复盘货币对" hidden>
+          <details open><summary>货币对 <span class="replay-pair-selection"></span></summary>
+            <div class="replay-pair-list"></div>
+          </details>
+        </nav>
         <div class="replay-main"><div class="replay-stats"></div>
           <div class="replay-market-slot"><section class="replay-market" aria-label="行情与成交">
             <div class="replay-chart-top"><strong>行情与成交</strong><span class="replay-current-pair"></span><button type="button" class="replay-return-chart" hidden>回到图表</button></div>
@@ -69,6 +73,8 @@ export class ReplayPanel {
       </div>`;
     this.form = root.querySelector("form");
     this.pairNav = root.querySelector(".replay-pairs");
+    this.pairList = this.pairNav.querySelector(".replay-pair-list");
+    this.pairSelection = this.pairNav.querySelector(".replay-pair-selection");
     this.market = root.querySelector(".replay-market");
     this.marketSlot = root.querySelector(".replay-market-slot");
     this.returnChart = root.querySelector(".replay-return-chart");
@@ -129,6 +135,7 @@ export class ReplayPanel {
     if (!scope) return;
     if (this.scope === scope && this.pairs.join() === pairs.join()) return;
     if (this.scope !== scope) {
+      this.pairNav.querySelector("details").open = true;
       this.form.elements.date.value = "";
       this.requestedPair = "";
     } else if (!pairs.includes(this.requestedPair)) {
@@ -142,7 +149,8 @@ export class ReplayPanel {
 
   renderPairs(pairs, stats = [], selected = "") {
     this.pairNav.hidden = pairs.length <= 1;
-    this.pairNav.replaceChildren(el("h3", "货币对"));
+    this.pairList.replaceChildren();
+    this.pairSelection.textContent = selected;
     if (pairs.length <= 1) return;
     const ranked = new Map(stats.filter(row => pairs.includes(row.pair)).map(row => [row.pair, row]));
     const max = Math.max(1, ...stats.map(row => row.fills));
@@ -163,9 +171,9 @@ export class ReplayPanel {
         this.requestedPair = pair;
         this.load();
       };
-      this.pairNav.append(button);
+      this.pairList.append(button);
     }
-    this.pairNav.append(el("small", "平仓盈亏扣本期成交费", "replay-pair-note"));
+    this.pairList.append(el("small", "平仓盈亏扣本期成交费", "replay-pair-note"));
   }
 
   close() {
