@@ -116,6 +116,8 @@ async def review(plugin, gid, pair="", days=1, end=0, *, private=True, include_c
             id=f"job-{jid}", job=jid, time=created, bar=bucket(created, period, provider),
             action="review", actor="ai", status=status, reason=trigger,
             text=redact(error or summary), outcome=outcome,
+            elapsed=round(max(0, updated - created)) if status in {"success", "failed"} else None,
+            tools=completed.get("tool_calls") or [],
             related=[f"log-{x['id']}" for x in json.loads(risks) if "id" in x],
         ))
     baseline = db.execute(

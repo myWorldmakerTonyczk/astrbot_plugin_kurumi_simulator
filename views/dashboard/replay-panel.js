@@ -13,6 +13,18 @@ const metrics = {
   drawdown: {name: "回撤", hint: "较历史峰值的跌幅", color: "#a44a65", fill: "#efdce2", value: row => -row.drawdown},
   return_rate: {name: "收益率", hint: "扣除资金流影响后的累计收益", color: "#315da4", value: row => row.return_rate},
 };
+const activityKinds = {
+  fill: "已成交", observe: "观望", fail: "失败或未执行", idle: "未成交", other: "其他状态",
+};
+const toolNames = {
+  state: "账户与报价", logs: "查交易日志", history: "查历史行情", open: "开仓",
+  close: "平仓", protect: "调整保护线", observe: "记录观望", plan: "更新策略",
+  diary: "查日记", notifications: "通知设置", borrow: "借款", repay: "还款",
+};
+const taskKind = event => event.outcome === "已成交" ? "fill"
+  : event.outcome === "已记录观望" ? "observe"
+  : event.status === "failed" || event.outcome === "操作未执行" ? "fail"
+  : event.outcome === "已完成，未成交" ? "idle" : "other";
 const fill = (event) => event.price != null && event.status === "success";
 const title = (event) => event.kind === "liquidation" ? "模拟强平" :
   event.action === "close" && ["触发止损", "触发止盈"].includes(event.reason) ? event.reason :
@@ -43,6 +55,7 @@ export class ReplayPanel {
           <div class="replay-chart-top"><strong>行情与成交</strong></div>
           <p class="replay-legend" hidden></p>
           <div class="replay-chart" aria-label="品种 K 线和成交标记"></div>
+          <section class="replay-activity" aria-label="AI 决策活动" hidden></section>
           <section class="replay-performance" aria-label="账户表现"></section>
           <div class="replay-timeline-top"><h3>决定与操作</h3>
             <select class="replay-event-filter" aria-label="记录筛选"><option value="all">全部记录</option>
@@ -104,6 +117,7 @@ export class ReplayPanel {
     this.chart = null;
     this.root.querySelector(".replay-chart").classList.remove("is-drawn");
     this.data = null;
+    this.drawActivity();
     this.selected = null;
     this.root.querySelector(".replay-timeline").replaceChildren();
     this.root.querySelector(".replay-detail").replaceChildren();
@@ -130,6 +144,7 @@ export class ReplayPanel {
       this.selected = null;
       this.draw();
       this.drawPerformance();
+      this.drawActivity();
       this.timeline();
       const latest = data.events.findLast(event => fill(event) && event.actor === "ai") || data.events.findLast(fill) || data.events.at(-1);
       if (latest) this.select(latest, false);
@@ -138,6 +153,7 @@ export class ReplayPanel {
       if (request !== this.version) return;
       this.data = null;
       this.clearPerformance();
+      this.drawActivity();
       this.clearTradeLabels?.();
       this.chart?.remove();
       this.chart = null;
@@ -300,6 +316,80 @@ export class ReplayPanel {
         if (mark) this.markDetail(mark, time, 60);
       });
     }
+  }
+
+  drawActivity() {
+    const root = this.root.querySelector(".replay-activity");
+    root.replaceChildren();
+    const data = this.data;
+    root.hidden = !data || data.private === false;
+    if (root.hidden) return;
+    const jobs = data.events.filter(event => event.action === "review");
+    root.append(el("h3", "AI 决策活动"));
+    if (!jobs.length) {
+      root.append(el("p", "这个时段没有保存的看盘任务。", "replay-muted"));
+      return;
+    }
+    const keys = Object.keys(activityKinds);
+    const duration = data.end - data.start;
+    const step = duration <= 2 * 86400 ? 3600 : duration <= 8 * 86400 ? 21600 : 86400;
+    const bins = Array.from({length: Math.max(1, Math.ceil(duration / step))}, () => []);
+    const totals = Object.fromEntries(keys.map(key => [key, 0]));
+    for (const event of jobs) {
+      const bin = Math.min(bins.length - 1, Math.max(0, Math.floor((event.time - data.start) / step)));
+      bins[bin].push(event);
+      totals[taskKind(event)]++;
+    }
+    const legend = el("div", null, "replay-activity-legend");
+    for (const key of keys) {
+      const badge = el("span", activityKinds[key] + " " + totals[key]);
+      badge.dataset.kind = key;
+      legend.append(badge);
+    }
+    const intro = el("p", "每格 " + (step === 86400 ? "1 天" : step / 3600 + " 小时") + " · 点击查看该时段的任务", "replay-muted");
+    const strip = el("div", null, "replay-activity-strip");
+    const list = el("div", null, "replay-activity-runs");
+    const max = Math.max(...bins.map(events => events.length));
+    const labels = new Intl.DateTimeFormat("zh-CN", {timeZone: "Asia/Shanghai",
+      ...(step === 86400 ? {month: "numeric", day: "numeric"} : {hour: "2-digit", minute: "2-digit", hour12: false})});
+    const buttons = [];
+    const show = index => {
+      for (const [i, button] of buttons.entries()) button.setAttribute("aria-pressed", String(i === index));
+      const start = data.start + index * step, end = Math.min(start + step, data.end);
+      list.replaceChildren(el("strong", stamp(start) + " — " + stamp(end)));
+      if (!bins[index].length) list.append(el("p", "这段时间没有保存的看盘任务。", "replay-muted"));
+      for (const event of bins[index]) {
+        const button = el("button", null, "replay-run");
+        button.type = "button";
+        button.append(el("time", stamp(event.time)), el("strong", title(event)));
+        const status = el("span", event.outcome || states[event.status] || event.status);
+        status.dataset.kind = taskKind(event);
+        button.append(status);
+        button.onclick = () => this.select(event);
+        list.append(button);
+      }
+    };
+    bins.forEach((events, index) => {
+      const button = el("button", null, "replay-activity-bin");
+      button.type = "button";
+      const start = data.start + index * step;
+      button.setAttribute("aria-label", stamp(start) + " 起，" + events.length + " 个看盘任务");
+      const stack = el("span", null, "replay-activity-stack");
+      for (const key of keys) {
+        const count = events.filter(event => taskKind(event) === key).length;
+        if (!count) continue;
+        const bar = el("span");
+        bar.dataset.kind = key;
+        bar.style.height = (count / max * 100) + "%";
+        stack.append(bar);
+      }
+      button.append(stack, el("small", index % 4 === 0 ? labels.format(start * 1000) : ""));
+      button.onclick = () => show(index);
+      strip.append(button);
+      buttons.push(button);
+    });
+    root.append(legend, intro, strip, list);
+    show(bins.findLastIndex(events => events.length));
   }
 
   installTradeLabels(root, chart, candles, trades) {
@@ -487,6 +577,21 @@ export class ReplayPanel {
     badges.append(el("span", actor), el("span", event.outcome || states[event.status] || event.status));
     heading.append(el("h3", title(event)), badges, el("time", stamp(event.time), "replay-muted"));
     root.append(heading);
+    if (event.action === "review") {
+      const section = el("section", null, "replay-inspector-section");
+      section.append(el("h4", "任务轨迹"));
+      if (event.elapsed != null) section.append(el("p", "从入队到结束 " + event.elapsed + " 秒", "replay-muted"));
+      const counts = new Map();
+      for (const tool of event.tools || []) {
+        if (!Object.hasOwn(toolNames, tool)) continue;
+        counts.set(tool, (counts.get(tool) || 0) + 1);
+      }
+      const tools = el("div", null, "replay-inspector-badges");
+      for (const [tool, count] of counts) tools.append(el("span", toolNames[tool] + " × " + count));
+      section.append(counts.size ? tools : el("p", "没有保存的工具调用明细。", "replay-muted"));
+      root.append(section);
+    }
+
     const position = event.position;
     if (position?.pair) {
       const fields = [["品种", position.pair], ["方向", position.side === "buy" ? "做多" : "做空"], ["数量", position.units + " 单位"]];

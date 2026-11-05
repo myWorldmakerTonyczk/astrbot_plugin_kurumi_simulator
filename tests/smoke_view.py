@@ -77,6 +77,7 @@ js = """window.fixture=FIXTURE;window.AstrBotPluginView={
     {time:t-900,open:1.1,high:1.101,low:1.099,close:1.1005},{time:t,open:1.1005,high:1.102,low:1.1,close:1.101}],
     marks:[{time:t-900,equity:10000,return_rate:0,drawdown:0},{time:t,equity:9900,return_rate:-0.75,drawdown:1}],
     events:[
+      {id:'job-1',job:1,time:t-1000,bar:t-1800,action:'review',status:'success',actor:'ai',reason:'定时看盘',outcome:'已记录观望',elapsed:6,tools:['state','observe']},
       {id:'log-1',time:t-900,bar:t-900,action:'open',status:'success',actor:'ai',reason:'观察到突破',price:1.1005,fee:.02,position:{id:'p',pair:'EUR/USD',side:'buy',units:1000,sl:'1.099',tp:'1.103'}},
       {id:'log-2',time:t,bar:t,action:'close',status:'success',actor:'system',reason:'触发止盈',price:1.101,fee:.02,position:{id:'p',pair:'EUR/USD',side:'buy',units:1000,pnl:0.5}}],
 
@@ -166,9 +167,15 @@ with sync_playwright() as p:
         arg=chart_canvases,
     )
     page.set_viewport_size({"width": 1440, "height": 1000})
-    page.locator(".replay-row").last.click()
+    page.locator(".replay-row[data-event=log-1]").click()
     assert "观察到突破" in page.locator(".replay-detail").inner_text()
     assert "等待突破" in page.locator(".replay-detail").inner_text()
+    activity = page.get_by_role("region", name="AI 决策活动")
+    assert "观望 1" in activity.inner_text()
+    activity.get_by_role("button", name="定时看盘", exact=False).click()
+    assert "从入队到结束 6 秒" in page.locator(".replay-detail").inner_text()
+    assert "记录观望 × 1" in page.locator(".replay-detail").inner_text()
+
     page.get_by_role("button", name="交易工作台", exact=True).click()
     page.evaluate("window.fixture.current.game.pairs = ['EUR/USD', 'GBP/USD']")
     page.locator("#refresh").click()

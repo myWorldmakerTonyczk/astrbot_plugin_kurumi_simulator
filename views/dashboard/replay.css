@@ -118,3 +118,25 @@
 .replay-inspector-section .replay-related { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; width: 100%; border-left: 3px solid #8560b3; }
 .replay-related time { font-size: .76rem; color: var(--review-muted); }
 .replay-inspector-sample { margin: 4px 0 10px; }
+
+.replay-activity { padding: 14px 12px; border-top: 1px solid var(--review-line); }
+.replay-activity[hidden] { display: none; }
+.replay-activity h3 { margin: 0 0 9px; }
+.replay-activity p { margin: 7px 0; }
+.replay-activity-legend { display: flex; flex-wrap: wrap; gap: 5px 8px; }
+.replay-activity [data-kind="fill"] { --activity-ink: #127467; }
+.replay-activity [data-kind="observe"] { --activity-ink: #5a54a0; }
+.replay-activity [data-kind="fail"] { --activity-ink: #a43c59; }
+.replay-activity [data-kind="idle"] { --activity-ink: #856523; }
+.replay-activity [data-kind="other"] { --activity-ink: #56665f; }
+.replay-activity-legend span, .replay-run span { padding: 3px 7px; border: 1px solid currentColor; border-radius: 5px; color: var(--activity-ink); font-size: .75rem; }
+.replay-activity-strip { display: flex; gap: 2px; overflow-x: auto; padding: 3px; }
+.replay-activity-strip .replay-activity-bin { flex: 1 0 25px; min-width: 0; display: grid; grid-template-rows: 64px 18px; align-items: end; gap: 3px; border: 1px solid transparent; background: transparent; padding: 3px 2px; color: var(--review-muted); }
+.replay-activity-bin[aria-pressed="true"], .replay-activity-bin:hover { background: #eee7f7; border-color: #cbb8e1; }
+.replay-activity-bin small { overflow: visible; white-space: nowrap; font-size: .66rem; text-align: left; }
+.replay-activity-stack { height: 100%; display: flex; flex-direction: column-reverse; border-bottom: 1px solid var(--review-line); }
+.replay-activity-stack span { background: var(--activity-ink); border-radius: 2px; }
+.replay-activity-runs { display: grid; gap: 5px; margin-top: 10px; }
+.replay-activity-runs > strong { font-size: .82rem; color: var(--review-muted); }
+.replay-activity-runs .replay-run { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; text-align: left; }
+.replay-run time { font-size: .78rem; color: var(--review-muted); }
