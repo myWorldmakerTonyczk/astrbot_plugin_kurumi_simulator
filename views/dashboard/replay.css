@@ -56,3 +56,7 @@
 .replay-trade-labels .replay-trade-label[data-kind="close"] { background: #943550; }
 .replay-trade-labels .replay-trade-label[data-kind="system"] { background: #805018; }
 .replay-trade-labels .replay-trade-label[aria-pressed="true"] { outline: 2px solid #243735; }
+
+.replay-curve-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0; padding: 0 12px 10px; font-size: .84rem; color: var(--review-muted); }
+.replay-curve-summary[hidden] { display: none; }
+.replay-curve-summary strong { color: var(--curve-color); font-size: .95rem; font-variant-numeric: tabular-nums; }

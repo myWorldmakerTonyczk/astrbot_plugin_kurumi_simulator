@@ -8,6 +8,11 @@ const states = {
 };
 const stamp = (value, zone = "Asia/Shanghai") => new Date(value * 1000).toLocaleString("zh-CN", {timeZone: zone, hour12: false});
 const number = (value, digits = 2) => Number(value).toLocaleString("zh-CN", {maximumFractionDigits: digits, minimumFractionDigits: digits});
+const metrics = {
+  drawdown: {name: "回撤", hint: "较历史峰值的跌幅", color: "#a44a65", fill: "#efdce2", value: row => -row.drawdown},
+  return_rate: {name: "收益率", hint: "扣除资金流影响后的累计收益", color: "#315da4", value: row => row.return_rate},
+  equity: {name: "净值", hint: "账户净资产（美元）", color: "#187d71", fill: "#dceee5", value: row => row.equity},
+};
 const fill = (event) => event.price != null && event.status === "success";
 const title = (event) => event.kind === "liquidation" ? "模拟强平" :
   event.action === "close" && ["触发止损", "触发止盈"].includes(event.reason) ? event.reason :
@@ -38,6 +43,7 @@ export class ReplayPanel {
             <option value="drawdown">回撤</option><option value="return_rate">收益率</option><option value="equity">净值</option>
           </select></label></div>
           <p class="replay-legend" hidden></p>
+          <p class="replay-curve-summary" aria-live="polite" hidden></p>
           <div class="replay-chart" aria-label="K 线和账户曲线"></div>
           <div class="replay-timeline-top"><h3>决定与操作</h3>
             <select class="replay-event-filter" aria-label="记录筛选"><option value="all">全部记录</option>
@@ -144,6 +150,8 @@ export class ReplayPanel {
     root.classList.remove("is-drawn");
     const legend = this.root.querySelector(".replay-legend");
     legend.hidden = true;
+    const curveSummary = this.root.querySelector(".replay-curve-summary");
+    curveSummary.hidden = true;
     const data = this.data;
     if (!data) return;
     if (!window.LightweightCharts) {
@@ -198,13 +206,33 @@ export class ReplayPanel {
       const previous = marks.get(time);
       if (metric !== "drawdown" || !previous || row.drawdown >= previous.drawdown) marks.set(time, row);
     }
+    const spec = metrics[metric];
+    const format = value => metric === "equity" ? "$" + number(value)
+      : (metric === "return_rate" && value > 0 ? "+" : "") + number(value === 0 ? 0 : value) + "%";
+    curveSummary.hidden = false;
+    curveSummary.style.setProperty("--curve-color", spec.color);
+    const latest = data.marks.at(-1);
+    curveSummary.replaceChildren(el("strong", spec.name + " " + (latest ? format(spec.value(latest)) : "—")),
+      el("span", latest ? spec.hint : "该时段没有账户采样"));
     if (marks.size) {
-      const curve = chart.addSeries(L.AreaSeries, {
-        lineColor: metric === "drawdown" ? "#a44a65" : "#187d71", lineWidth: 2,
-        topColor: "#dceee5", bottomColor: "#f7faf6",
-        priceFormat: {type: "custom", minMove: 0.01, formatter: value => metric === "equity" ? "$" + number(value) : number(value) + "%"},
-      }, data.candles.length ? 1 : 0);
-      curve.setData([...marks].map(([time, row]) => ({time, value: metric === "drawdown" ? -row.drawdown : row[metric]})));
+      const options = {
+        lineColor: spec.color, color: spec.color, lineWidth: 2,
+        topColor: spec.fill, bottomColor: "#f7faf6", pointMarkersVisible: marks.size < 3,
+        priceFormat: {type: "custom", minMove: 0.01, formatter: format},
+      };
+      if (metric !== "equity") {
+        options.autoscaleInfoProvider = original => {
+          const info = original();
+          if (!info?.priceRange) return info;
+          const {minValue, maxValue} = info.priceRange;
+          return {...info, priceRange: {minValue: Math.min(0, minValue), maxValue: Math.max(0, maxValue)}};
+        };
+      }
+      const curve = chart.addSeries(spec.fill ? L.AreaSeries : L.LineSeries, options, data.candles.length ? 1 : 0);
+      curve.setData([...marks].map(([time, row]) => ({time, value: spec.value(row)})));
+      if (metric !== "equity") curve.createPriceLine({
+        price: 0, title: "0%", color: "#647488", lineWidth: 1, lineStyle: L.LineStyle.Dashed, axisLabelVisible: false,
+      });
       if (data.candles.length) chart.panes()[1]?.setHeight(140);
     }
     chart.subscribeClick(param => {

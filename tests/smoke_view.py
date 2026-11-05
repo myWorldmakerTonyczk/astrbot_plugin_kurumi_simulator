@@ -74,7 +74,7 @@ js = """window.fixture=FIXTURE;window.AstrBotPluginView={
   const t=Math.floor(Date.now()/900000)*900;
   return {pair:'EUR/USD',period:'15m',start:t-86400,end:t+900,warning:'',candles:[
     {time:t-900,open:1.1,high:1.101,low:1.099,close:1.1005},{time:t,open:1.1005,high:1.102,low:1.1,close:1.101}],
-    marks:[{time:t-900,equity:10000,return_rate:0,drawdown:0},{time:t,equity:9900,return_rate:-1,drawdown:1}],
+    marks:[{time:t-900,equity:10000,return_rate:0,drawdown:0},{time:t,equity:9900,return_rate:-0.75,drawdown:1}],
     events:[
       {id:'log-1',time:t-900,bar:t-900,action:'open',status:'success',actor:'ai',reason:'观察到突破',price:1.1005,fee:.02,position:{id:'p',pair:'EUR/USD',side:'buy',units:1000,sl:'1.099',tp:'1.103'}},
       {id:'log-2',time:t,bar:t,action:'close',status:'success',actor:'system',reason:'触发止盈',price:1.101,fee:.02,position:{id:'p',pair:'EUR/USD',side:'buy',units:1000,pnl:0.5}}],
@@ -148,7 +148,12 @@ with sync_playwright() as p:
         colors = dict((color, count) for count, color in image.convert("RGB").getcolors(image.width * image.height))
         assert colors.get((22, 130, 117), 0) > 10, "K-line candles are not visible"
         assert colors.get((133, 90, 33), 0) > 4, "System exit marker is not visible"
+    summary = page.locator(".replay-curve-summary")
+    assert "回撤 -1.00%" in summary.inner_text()
+    page.locator(".replay-metric").select_option("return_rate")
+    assert "收益率 -0.75%" in summary.inner_text()
     page.locator(".replay-metric").select_option("equity")
+    assert "净值 $9,900.00" in summary.inner_text()
     page.wait_for_function(
         "(selector) => [...document.querySelectorAll(selector)].some(canvas => canvas.getBoundingClientRect().height >= 240)",
         arg=chart_canvases,
