@@ -150,3 +150,12 @@
   }
   [data-page="replay"] .replay-chart.is-drawn { height: clamp(360px, 49vh, 580px); }
 }
+
+.replay-event-guide {
+  position: absolute; top: 5px; z-index: 1; color: #593485; background: #f4eefa;
+  border: 1px solid #8560b3; border-radius: 3px; padding: 2px 5px; font-size: .72rem;
+}
+.replay-event-guide::after {
+  content: ""; position: absolute; top: 100%; left: 0;
+  height: var(--guide-height); border-left: 1px dashed #8560b3;
+}

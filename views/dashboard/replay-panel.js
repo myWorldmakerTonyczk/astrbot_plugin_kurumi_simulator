@@ -121,6 +121,7 @@ export class ReplayPanel {
     this.version++;
     this.clearPerformance();
     this.scope = "";
+    cancelAnimationFrame(this.rangeFrame);
     this.clearTradeLabels?.();
     this.chart?.remove();
     this.chart = null;
@@ -128,6 +129,7 @@ export class ReplayPanel {
     this.data = null;
     this.drawActivity();
     this.selected = null;
+    this.relatedFrom = null;
     this.root.querySelector(".replay-timeline").replaceChildren();
     this.root.querySelector(".replay-detail").replaceChildren();
     this.root.querySelector(".replay-stats").replaceChildren();
@@ -152,6 +154,7 @@ export class ReplayPanel {
       ].filter(Boolean).join(" · ");
       this.stats();
       this.selected = null;
+      this.relatedFrom = null;
       this.draw();
       this.drawPerformance();
       this.drawActivity();
@@ -164,6 +167,7 @@ export class ReplayPanel {
       this.data = null;
       this.clearPerformance();
       this.drawActivity();
+      cancelAnimationFrame(this.rangeFrame);
       this.clearTradeLabels?.();
       this.chart?.remove();
       this.chart = null;
@@ -197,6 +201,7 @@ export class ReplayPanel {
   }
 
   draw() {
+    cancelAnimationFrame(this.rangeFrame);
     this.clearTradeLabels?.();
     this.chart?.remove();
     this.chart = null;
@@ -403,7 +408,6 @@ export class ReplayPanel {
   }
 
   installTradeLabels(root, chart, candles, trades) {
-    if (!trades.length) return;
     const overlay = el("div", null, "replay-trade-labels");
     root.append(overlay);
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -416,6 +420,13 @@ export class ReplayPanel {
       return path;
     });
     overlay.append(svg);
+    const guides = ["上一条", "当前"].map(label => {
+      const guide = el("span", label, "replay-event-guide");
+      guide.hidden = true;
+      guide.setAttribute("aria-hidden", "true");
+      overlay.append(guide);
+      return guide;
+    });
     const labels = trades.map(event => {
       const button = el("button", title(event), "replay-trade-label");
       button.type = "button";
@@ -449,6 +460,16 @@ export class ReplayPanel {
           }
         }
         for (const path of paths) path.setAttribute("d", route);
+        const pair = this.relatedFrom && this.selected ? [this.relatedFrom, this.selected] : [];
+        const sameBar = pair.length === 2 && pair[0].bar === pair[1].bar;
+        for (const [i, guide] of guides.entries()) {
+          const x = pair[i] && this.candleTimes.has(pair[i].bar) ? scale.timeToCoordinate(pair[i].bar) : null;
+          guide.hidden = x == null || x < 0 || x > width || (sameBar && i === 0);
+          if (guide.hidden) continue;
+          guide.textContent = sameBar ? "前后记录" : i === 0 ? "上一条" : "当前";
+          guide.style.left = Math.max(0, Math.min(x, width - guide.offsetWidth)) + "px";
+          guide.style.setProperty("--guide-height", Math.max(0, height - 20) + "px");
+        }
         const occupied = [];
         for (const {event, button} of labels) {
           const x = scale.timeToCoordinate(event.bar);
@@ -533,17 +554,45 @@ export class ReplayPanel {
     if (!events.length) list.append(el("li", "这个时段没有匹配的记录。", "replay-empty"));
   }
 
-  select(event, move = true) {
+  select(event, move = true, keepOrigin = false) {
+    const origin = keepOrigin ? this.selected : null;
+    this.relatedFrom = origin && origin.id !== event.id ? origin : null;
     this.selected = event;
     this.highlight(event);
     for (const button of this.root.querySelectorAll(".replay-row")) {
       button.setAttribute("aria-current", button.dataset.event === event.id ? "true" : "false");
     }
-    if (move && this.chart) {
-      const half = {"15m": 900, "1h": 3600, "4h": 14400}[this.data.period] * 12;
-      this.chart.timeScale().setVisibleRange({from: event.bar - half, to: event.bar + half});
-    }
+    cancelAnimationFrame(this.rangeFrame);
+    if (move && this.chart) this.revealEvents(event, this.relatedFrom);
     this.detail(event);
+  }
+
+  revealEvents(event, origin) {
+    const scale = this.chart.timeScale();
+    const current = scale.getVisibleLogicalRange();
+    const bars = this.data.candles;
+    const indices = [event, origin].filter(Boolean).map(item => bars.findIndex(bar => bar.time === item.bar)).filter(index => index >= 0);
+    if (!current || !indices.length) return;
+    const left = Math.min(...indices), right = Math.max(...indices);
+    if (left >= current.from && right <= current.to) return;
+    const span = Math.max(current.to - current.from, right - left + 4);
+    const from = Math.min(left - 2, Math.max(current.from, right + 2 - span));
+    const target = {from, to: from + span};
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      scale.setVisibleLogicalRange(target);
+      return;
+    }
+    const started = performance.now();
+    const move = now => {
+      const progress = Math.min(1, (now - started) / 320);
+      const eased = 1 - (1 - progress) ** 3;
+      scale.setVisibleLogicalRange({
+        from: current.from + (target.from - current.from) * eased,
+        to: current.to + (target.to - current.to) * eased,
+      });
+      if (progress < 1) this.rangeFrame = requestAnimationFrame(move);
+    };
+    this.rangeFrame = requestAnimationFrame(move);
   }
 
   textSection(label, text, grouped = false) {
@@ -568,7 +617,7 @@ export class ReplayPanel {
       const button = el("button", null, "replay-related");
       button.append(el("strong", title(event)), el("time", stamp(event.time)));
       button.type = "button";
-      button.onclick = () => this.select(event);
+      button.onclick = () => this.select(event, true, true);
       root.append(button);
     }
   }
@@ -649,6 +698,7 @@ export class ReplayPanel {
   }
 
   markDetail(mark, time, seconds) {
+    this.relatedFrom = null;
     this.selected = null;
     this.highlight();
     const root = this.root.querySelector(".replay-detail");
