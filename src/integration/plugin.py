@@ -213,6 +213,16 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin):
             )
         )
 
+    async def validate_persona(self, persona):
+        if not isinstance(persona, str) or not persona.strip():
+            raise ValueError("请选择 AstrBot 人格后再开始游戏")
+        persona = persona.strip()
+        if not any(p.persona_id == persona for p in self.context.persona_manager.personas):
+            raise ValueError("所选人格不存在，请重新选择")
+        if not await self.context.persona_manager.get_persona(persona):
+            raise ValueError("所选人格不存在，请重新选择")
+        return persona
+
     async def web_command(self):
         if not self.authorized():
             return error_response("需要 AstrBot 登录", status_code=401)
@@ -228,6 +238,13 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin):
                     raise ValueError(
                         "绑定用户为必填，请填写QQ号、完整会话UMO列表或选择随机用户ID"
                     )
+                options = dict(options)
+                options["persona"] = await self.validate_persona(options.get("persona"))
+                options.setdefault("auto", True)
+                if type(options["auto"]) is not bool:
+                    raise ValueError("定时看盘开关须为布尔值")
+                if options["auto"]:
+                    llm.ensure_available(self, options)
                 return json_response(self.engine.create(options))
             if body.get("action") == "create_user":
                 return json_response(
@@ -262,8 +279,8 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin):
             if body.get("action") == "bind":
                 game = self.engine.get(body["game"])
                 provider, persona = (
-                    str(body.get("provider", "")),
-                    str(body.get("persona", "")),
+                    str(body.get("provider", game.get("provider", ""))),
+                    body.get("persona", game.get("persona", "")),
                 )
                 if (
                     llm.settings(self.settings().get("llm"))["mode"] == "platform"
@@ -271,8 +288,7 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin):
                     and not self.context.get_provider_by_id(provider)
                 ):
                     raise ValueError("模型不存在")
-                if persona:
-                    await self.context.persona_manager.get_persona(persona)
+                persona = await self.validate_persona(persona)
                 access = policy.effective(self.engine, game)
                 interval = int(body.get("interval", access["effective_interval"]))
                 if (

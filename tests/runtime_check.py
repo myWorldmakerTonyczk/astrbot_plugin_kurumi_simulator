@@ -29,7 +29,7 @@ registered_tools = []
 context = SimpleNamespace(
     get_all_providers=lambda: [],
     get_provider_by_id=lambda pid: SimpleNamespace() if pid=="test" else None,
-    persona_manager=SimpleNamespace(personas=[]),
+    persona_manager=SimpleNamespace(personas=[SimpleNamespace(persona_id="test")], get_persona=AsyncMock(return_value=SimpleNamespace(persona_id="test"))),
     register_web_api=lambda *args: routes.append(args),
     add_llm_tools=lambda *tools: registered_tools.extend(tools),
 )
@@ -186,11 +186,21 @@ async def check():
         assert response.status_code == expected
     response = await post(plugin.web_command, {"action": "create", "options": {}})
     assert response.status_code == 400
+    # Missing/unknown personas must fail without creating games or users.
+    before_games = len(plugin.engine.games())
+    for persona in (None, "", "deleted-persona"):
+        invalid = await post(plugin.web_command, {"action": "create", "options": {"user_binding": {"type": "random", "values": []}, "persona": persona}})
+        assert invalid.status_code == 400
+    assert len(plugin.engine.games()) == before_games
+    values = plugin.settings()
+    values["llm"] = {"mode": "platform", "provider_id": "test"}
+    plugin.engine.db.execute("UPDATE settings SET data=? WHERE id=1", (json.dumps(values),))
     response = await post(
         plugin.web_command,
         {
             "action": "create",
             "options": {
+                "persona": "test",
                 "user_binding": {
                     "type": "random",
                     "values": [],
@@ -200,6 +210,9 @@ async def check():
     )
     assert response.status_code == 200
     owned = json.loads(response.body)
+    assert owned["auto"] is True and owned["persona"] == "test"
+    invalid = await post(plugin.web_command, {"action": "bind", "game": owned["id"], "persona": "", "auto": False})
+    assert invalid.status_code == 400
     # An instance request cannot bypass the administrator-owned interval lock.
     denied_interval=await post(plugin.web_command,{"action":"bind","game":owned["id"],"interval":7200})
     assert denied_interval.status_code==400

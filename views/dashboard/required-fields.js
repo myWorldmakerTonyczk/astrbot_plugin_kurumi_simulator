@@ -1,7 +1,7 @@
 // Required cues reflect empty values, including dynamically rendered settings.
 const markers = new WeakMap();
 export function refreshRequired() {
-  for (const field of document.querySelectorAll('[data-page="setup"] input, [data-page="setup"] select, [data-page="setup"] textarea, #binding input, #binding select, #instance-notifications input')) {
+  for (const field of document.querySelectorAll('[data-page="setup"] input, [data-page="setup"] select, [data-page="setup"] textarea, #create select, #binding input, #binding select, #instance-notifications input')) {
     const label = field.closest("label");
     if (!label) continue;
     let mark = markers.get(field);

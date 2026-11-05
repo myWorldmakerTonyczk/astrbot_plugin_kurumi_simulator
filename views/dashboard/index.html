@@ -623,6 +623,11 @@
           只设置这一局的资金、杠杆、货币对和挑战规则。创建后可在实例设置中绑定AI。
         </p>
         <form id="create">
+          <label>AstrBot 人格<select id="create-persona" name="persona" required>
+            <option value="">请选择人格</option>
+          </select><span class="caption">必须先选择人格，创建后用于自主看盘和每日日记。</span></label>
+          <label class="check"><input id="create-auto" name="auto" type="checkbox" checked />开启定时自主看盘（默认每小时一次）</label>
+
           <fieldset class="user-binding-fields">
             <legend>
               绑定用户 <span class="required-mark">（必填）</span>

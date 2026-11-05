@@ -261,6 +261,10 @@ with sync_playwright() as p:
     page.get_by_role("button", name="新建实例", exact=True).click()
     page.wait_for_selector("#create-instance-dialog[open]")
     assert page.locator("#create").is_visible()
+    assert page.locator("#create-auto").is_checked()
+    assert page.locator("#create-persona").input_value() == ""
+    assert page.locator("#create-persona").get_attribute("required") is not None
+    page.locator("#create-persona").select_option("test")
     assert page.locator("#user-binding-type").input_value() == "umo"
     assert page.locator("#bound-umos").get_attribute("required") is not None
     assert "/sid" in page.locator("[data-binding-kind=umo]").inner_text()
@@ -310,6 +314,7 @@ with sync_playwright() as p:
     for kind, value in [("qq", "123456789"), ("random", "")]:
         page.locator("#back-to-catalog").click()
         page.get_by_role("button", name="新建实例", exact=True).click()
+        page.locator("#create-persona").select_option("test")
         page.locator("#user-binding-type").select_option(kind)
         if kind == "qq":
             page.locator("#bound-qq").fill(value)

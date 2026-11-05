@@ -824,6 +824,8 @@ submit("create", async (p) => {
     action: "create",
     options: {
       name: p.name,
+      persona: p.persona,
+      auto: $("create-auto").checked,
       user_binding: collectUserBinding(p),
       user_nickname: p.user_nickname || "",
       initial: p.initial,
@@ -945,6 +947,8 @@ $("confirm-rotate-user").onclick = async () => {
   } catch {}
 };
 function openCreateInstance() {
+  options($("create-persona"), [{ id: "", name: "请选择人格" }, ...(state?.personas || [])], "");
+  $("create-auto").checked = true;
   $("create-instance-dialog").showModal();
   tradingNotices.setScope("");
 }
