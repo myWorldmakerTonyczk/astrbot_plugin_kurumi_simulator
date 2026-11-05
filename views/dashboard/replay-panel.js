@@ -175,7 +175,6 @@ export class ReplayPanel {
     this.chart?.remove();
     this.chart = null;
     this.priceSeries = null;
-    this.positionLine = null;
     this.protectionLines = [];
     const root = this.root.querySelector(".replay-chart");
     root.replaceChildren();
@@ -218,7 +217,7 @@ export class ReplayPanel {
     if (data.candles.length) {
       legend.textContent = data.pair + " · " + data.period
         + " · ▲ 多头开仓 / ▼ 空头开仓 / ● 平仓 · 金色为系统退出"
-        + (trades.length ? " · 点击标记查看操作" : " · 可见 K 线内暂无成交标记");
+        + (trades.length ? " · 紫色弧线关联选中持仓的开平仓" : " · 可见 K 线内暂无成交标记");
     } else {
       legend.textContent = "该时段没有可用的 K 线，操作记录仍可在下方查看。";
     }
@@ -307,6 +306,16 @@ export class ReplayPanel {
     if (!trades.length) return;
     const overlay = el("div", null, "replay-trade-labels");
     root.append(overlay);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.classList.add("replay-position-arc");
+    svg.setAttribute("aria-hidden", "true");
+    const paths = ["halo", "ink"].map(kind => {
+      const path = document.createElementNS(svg.namespaceURI, "path");
+      path.classList.add("replay-arc-" + kind);
+      svg.append(path);
+      return path;
+    });
+    overlay.append(svg);
     const labels = trades.map(event => {
       const button = el("button", title(event), "replay-trade-label");
       button.type = "button";
@@ -322,6 +331,24 @@ export class ReplayPanel {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const width = scale.width(), height = chart.panes()[0].getHeight();
+        svg.setAttribute("width", width);
+        svg.setAttribute("height", height);
+        const position = this.selected?.position?.id;
+        const related = position ? trades.filter(event => event.position?.id === position) : [];
+        const first = related.find(event => event.action === "open");
+        const last = related.findLast(event => event.action === "close");
+        let route = "";
+        if (first && last) {
+          const x1 = scale.timeToCoordinate(first.bar), x2 = scale.timeToCoordinate(last.bar);
+          const y1 = candles.priceToCoordinate(first.price), y2 = candles.priceToCoordinate(last.price);
+          if ([x1, x2, y1, y2].every(Number.isFinite)) {
+            const bend = Math.min(45, Math.max(18, Math.abs(x2 - x1) * .2));
+            const side = (y1 + y2) / 2 > height / 2 ? -1 : 1;
+            route = "M " + x1 + " " + y1 + " C " + (x1 + bend) + " " + (y1 + side * bend)
+              + ", " + (x2 + bend) + " " + (y2 + side * bend) + ", " + x2 + " " + y2;
+          }
+        }
+        for (const path of paths) path.setAttribute("d", route);
         const occupied = [];
         for (const {event, button} of labels) {
           const x = scale.timeToCoordinate(event.bar);
@@ -368,23 +395,10 @@ export class ReplayPanel {
   highlight(event) {
     this.updateTradeLabels?.();
     if (!this.chart || !this.priceSeries) return;
-    if (this.positionLine) {
-      this.chart.removeSeries(this.positionLine);
-      this.positionLine = null;
-    }
     for (const line of this.protectionLines) this.priceSeries.removePriceLine(line);
     this.protectionLines = [];
     if (!event?.position?.id || !this.candleTimes.has(event.bar)) return;
     const L = window.LightweightCharts;
-    const related = this.data.events.filter(e => e.position?.id === event.position.id && fill(e) && this.candleTimes.has(e.bar));
-    const points = [...new Map(related.map(e => [e.bar, {time: e.bar, value: e.price}])).values()];
-    if (points.length > 1) {
-      this.positionLine = this.chart.addSeries(L.LineSeries, {
-        color: "#9a7337", lineWidth: 2, lineStyle: L.LineStyle.Dashed,
-        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-      });
-      this.positionLine.setData(points);
-    }
     for (const [field, title, color] of [["sl", "当时止损", "#ae4761"], ["tp", "当时止盈", "#168275"]]) {
       const value = Number(event.position[field]);
       if (value > 0) this.protectionLines.push(this.priceSeries.createPriceLine({

@@ -144,6 +144,7 @@ with sync_playwright() as p:
         arg=chart_canvases,
     )
     page.locator(".replay-trade-label").get_by_text("开仓", exact=True).wait_for()
+    page.wait_for_function("document.querySelector('.replay-arc-ink')?.getAttribute('d')?.includes(' C ')")
     page.get_by_role("button", name="触发止盈", exact=True).click()
     assert "触发止盈" in page.locator(".replay-detail").inner_text()
     with Image.open(BytesIO(page.locator(".replay-chart").screenshot())) as image:

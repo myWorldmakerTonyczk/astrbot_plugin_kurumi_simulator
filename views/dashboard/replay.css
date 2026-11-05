@@ -92,3 +92,8 @@
 @container (max-width: 730px) {
   .replay-performance-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+.replay-position-arc { position: absolute; left: 0; top: 0; overflow: hidden; pointer-events: none; }
+.replay-position-arc path { fill: none; stroke-linecap: round; }
+.replay-arc-halo { stroke: #fff; stroke-width: 7px; }
+.replay-arc-ink { stroke: #6941a5; stroke-width: 3px; stroke-dasharray: 7 4; }
