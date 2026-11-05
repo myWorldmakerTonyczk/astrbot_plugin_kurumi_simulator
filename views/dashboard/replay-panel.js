@@ -37,6 +37,7 @@ export class ReplayPanel {
           <div class="replay-chart-top"><span>成交与行情</span><label>账户曲线 <select class="replay-metric">
             <option value="drawdown">回撤</option><option value="return_rate">收益率</option><option value="equity">净值</option>
           </select></label></div>
+          <p class="replay-legend" hidden></p>
           <div class="replay-chart" aria-label="K 线和账户曲线"></div>
           <div class="replay-timeline-top"><h3>决定与操作</h3>
             <select class="replay-event-filter" aria-label="记录筛选"><option value="all">全部记录</option>
@@ -138,6 +139,8 @@ export class ReplayPanel {
     const root = this.root.querySelector(".replay-chart");
     root.replaceChildren();
     root.classList.remove("is-drawn");
+    const legend = this.root.querySelector(".replay-legend");
+    legend.hidden = true;
     const data = this.data;
     if (!data) return;
     if (!window.LightweightCharts) {
@@ -154,7 +157,7 @@ export class ReplayPanel {
     // autoSize measures the host, so give it a height before creating the chart.
     root.classList.add("is-drawn");
     const chart = this.chart = L.createChart(root, {
-      autoSize: true, layout: {background: {color: "#f7faf6"}, textColor: ink},
+      autoSize: true, layout: {background: {type: "solid", color: "#f7faf6"}, textColor: ink},
       grid: {vertLines: {color: grid}, horzLines: {color: grid}},
       rightPriceScale: {borderColor: "#d3ded4"},
       timeScale: {timeVisible: true, secondsVisible: false, borderColor: "#d3ded4",
@@ -170,6 +173,14 @@ export class ReplayPanel {
     candles.setData(data.candles);
     const times = this.candleTimes = new Set(data.candles.map(b => b.time));
     const trades = data.events.filter(e => fill(e) && times.has(e.bar));
+    legend.hidden = false;
+    if (data.candles.length) {
+      legend.textContent = data.pair + " · " + data.period
+        + " · ▲ 多头开仓 / ▼ 空头开仓 / ● 平仓 · 金色为系统退出"
+        + (trades.length ? " · 点击标记查看操作" : " · 可见 K 线内暂无成交标记");
+    } else {
+      legend.textContent = "该时段没有可用的 K 线，操作记录仍可在下方查看。";
+    }
     L.createSeriesMarkers(candles, trades.map(e => ({
       time: e.bar, position: "atPriceMiddle", price: e.price,
       shape: e.action === "close" ? "circle" : e.position.side === "buy" ? "arrowUp" : "arrowDown",

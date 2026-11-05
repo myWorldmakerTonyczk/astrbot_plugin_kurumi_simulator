@@ -4,6 +4,9 @@ import json
 import mimetypes
 import sys
 import time
+from io import BytesIO
+
+from PIL import Image
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -138,6 +141,10 @@ with sync_playwright() as p:
         "(selector) => [...document.querySelectorAll(selector)].some(canvas => canvas.getBoundingClientRect().height >= 240)",
         arg=chart_canvases,
     )
+    with Image.open(BytesIO(page.locator(".replay-chart").screenshot())) as image:
+        colors = dict((color, count) for count, color in image.convert("RGB").getcolors(image.width * image.height))
+        assert colors.get((22, 130, 117), 0) > 10, "K-line candles are not visible"
+        assert colors.get((133, 90, 33), 0) > 4, "System exit marker is not visible"
     page.locator(".replay-metric").select_option("equity")
     page.wait_for_function(
         "(selector) => [...document.querySelectorAll(selector)].some(canvas => canvas.getBoundingClientRect().height >= 240)",
