@@ -72,7 +72,7 @@ js = """window.fixture=FIXTURE;window.AstrBotPluginView={
  if(endpoint==='diaries')return {entries:[{day:'2026-11-03',status:'success',content:'今天认真观察了行情，也和你聊了天。'}],next_before:'2026-11-03'};
  if(endpoint==='review'){
   const t=Math.floor(Date.now()/900000)*900;
-  return {pair:'EUR/USD',period:'15m',start:t-86400,end:t+900,warning:'',candles:[
+  return {pair:params.pair||'EUR/USD',period:'15m',start:t-86400,end:t+900,warning:'',candles:[
     {time:t-900,open:1.1,high:1.101,low:1.099,close:1.1005},{time:t,open:1.1005,high:1.102,low:1.1,close:1.101}],
     marks:[{time:t-900,equity:10000,return_rate:0,drawdown:0},{time:t,equity:9900,return_rate:-0.75,drawdown:1}],
     events:[
@@ -136,6 +136,7 @@ with sync_playwright() as p:
     page.wait_for_selector("#desk:not([hidden])")
     page.get_by_role("button", name="AI 复盘", exact=True).click()
     page.wait_for_selector(".replay-row")
+    assert page.locator(".replay-pairs").is_hidden()
     chart_canvases = ".replay-chart canvas"
     page.wait_for_function(
         "(selector) => [...document.querySelectorAll(selector)].some(canvas => canvas.getBoundingClientRect().height >= 240)",
@@ -167,6 +168,14 @@ with sync_playwright() as p:
     page.locator(".replay-row").last.click()
     assert "观察到突破" in page.locator(".replay-detail").inner_text()
     assert "等待突破" in page.locator(".replay-detail").inner_text()
+    page.get_by_role("button", name="交易工作台", exact=True).click()
+    page.evaluate("window.fixture.current.game.pairs = ['EUR/USD', 'GBP/USD']")
+    page.locator("#refresh").click()
+    page.get_by_role("button", name="AI 复盘", exact=True).click()
+    pairs = page.get_by_role("navigation", name="复盘货币对")
+    pairs.get_by_role("button", name="GBP/USD").click()
+    page.wait_for_function("document.querySelector('.replay-pair[data-pair=\"GBP/USD\"]').getAttribute('aria-pressed') === 'true'")
+
     page.get_by_role("button", name="交易工作台", exact=True).click()
     assert page.locator('#pause').count()==0
     page.locator('#decide').click()

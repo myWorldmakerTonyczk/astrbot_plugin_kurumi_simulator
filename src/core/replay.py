@@ -53,20 +53,22 @@ async def review(plugin, gid, pair="", days=1, end=0, *, private=True, include_c
     if type(end) is not int or not 0 <= end <= now:
         raise ValueError("复盘结束时间无效")
     before = end + 1 if end else 0
-    if not pair:
-        recent = db.execute(
-            """SELECT json_extract(data,'$.detail.position.pair') FROM logs
-               WHERE game=? AND json_extract(data,'$.source')='ai'
-               AND json_extract(data,'$.status')='success'
-               AND json_extract(data,'$.action') IN ('open','close')
-               AND created<=? ORDER BY created DESC,seq DESC LIMIT 1""",
-            (gid, end or time.time()),
-        ).fetchone()
-        pair = recent[0] if recent and recent[0] in game["pairs"] else game["pairs"][0]
-    if pair not in game["pairs"] or type(days) is not int or days not in PERIOD_BY_DAYS:
-        raise ValueError("请选择实例内的品种及 1、7 或 30 天")
+    if type(days) is not int or days not in PERIOD_BY_DAYS:
+        raise ValueError("请选择 1、7 或 30 天")
     end = end or now
     start = end - days * 86400
+    if not pair:
+        ranked = db.execute(
+            """SELECT json_extract(data,'$.detail.position.pair') AS pair FROM logs
+               WHERE game=? AND created BETWEEN ? AND ?
+               AND json_extract(data,'$.status')='success'
+               AND json_extract(data,'$.action') IN ('open','close')
+               GROUP BY pair ORDER BY count(*) DESC, max(seq) DESC""",
+            (gid, start, end),
+        )
+        pair = next((row[0] for row in ranked if row[0] in game["pairs"]), game["pairs"][0])
+    if pair not in game["pairs"]:
+        raise ValueError("请选择实例内的品种")
     period = PERIOD_BY_DAYS[days]
     settings = dict(plugin.settings(), history_source="market")
     provider = source(settings)

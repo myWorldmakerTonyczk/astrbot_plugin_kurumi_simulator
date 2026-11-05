@@ -32,12 +32,13 @@ export class ReplayPanel {
     this.scope = "";
     root.innerHTML = `
       <div class="replay-heading"><div><h2>AI 复盘</h2><p>从行情回到她做决定的那一刻。</p></div>
-      <form class="replay-filters"><label>货币对 <select name="pair"></select></label>
+      <form class="replay-filters">
         <label>范围 <select name="days"><option value="1">最近 24 小时</option><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></label>
         <label>截至 <input type="date" name="date" aria-label="复盘截至日期"></label>
         <button type="submit">查看</button></form></div>
       <p class="replay-status" role="status"></p>
       <div class="replay-layout">
+        <nav class="replay-pairs" aria-label="复盘货币对" hidden></nav>
         <div class="replay-main"><div class="replay-stats"></div>
           <div class="replay-chart-top"><span>成交与行情</span><label>账户曲线 <select class="replay-metric">
             <option value="drawdown">回撤</option><option value="return_rate">收益率</option><option value="equity">净值</option>
@@ -53,6 +54,7 @@ export class ReplayPanel {
         <aside class="replay-detail" aria-live="polite"></aside>
       </div>`;
     this.form = root.querySelector("form");
+    this.pairNav = root.querySelector(".replay-pairs");
     this.form.onsubmit = (event) => { event.preventDefault(); this.load(); };
     root.querySelector(".replay-metric").onchange = () => this.draw();
     root.querySelector(".replay-event-filter").onchange = () => this.timeline();
@@ -62,7 +64,20 @@ export class ReplayPanel {
     if (!scope || this.scope === scope) return;
     this.scope = scope;
     this.form.elements.date.value = "";
-    this.form.elements.pair.replaceChildren(new Option("最近操作品种", ""), ...pairs.map(pair => new Option(pair, pair)));
+    this.requestedPair = "";
+    this.pairNav.hidden = pairs.length <= 1;
+    this.pairNav.replaceChildren(el("h3", "货币对"));
+    for (const pair of pairs) {
+      const button = el("button", pair, "replay-pair");
+      button.type = "button";
+      button.dataset.pair = pair;
+      button.setAttribute("aria-pressed", "false");
+      button.onclick = () => {
+        this.requestedPair = pair;
+        this.load();
+      };
+      this.pairNav.append(button);
+    }
     this.load();
   }
 
@@ -87,10 +102,12 @@ export class ReplayPanel {
     const status = this.root.querySelector(".replay-status");
     status.textContent = "正在读取复盘记录…";
     try {
-      const data = await this.fetchReview(this.scope, {pair: form.pair.value, days: Number(form.days.value), end});
+      const data = await this.fetchReview(this.scope, {pair: this.requestedPair, days: Number(form.days.value), end});
       if (request !== this.version) return;
       this.data = data;
-      form.pair.value = data.pair;
+      for (const button of this.pairNav.querySelectorAll("button")) {
+        button.setAttribute("aria-pressed", String(button.dataset.pair === data.pair));
+      }
       status.textContent = [
         stamp(data.start) + " — " + stamp(data.end) + "（北京时间）",
         data.warning, data.truncated ? "记录较多，可缩短范围查看。" : "",
@@ -213,7 +230,7 @@ export class ReplayPanel {
     curveSummary.style.setProperty("--curve-color", spec.color);
     const latest = data.marks.at(-1);
     curveSummary.replaceChildren(el("strong", spec.name + " " + (latest ? format(spec.value(latest)) : "—")),
-      el("span", latest ? spec.hint : "该时段没有账户采样"));
+      el("span", latest ? spec.hint + " · 下方曲线 · 整个账户" : "该时段没有账户采样"));
     if (marks.size) {
       const options = {
         lineColor: spec.color, color: spec.color, lineWidth: 2,

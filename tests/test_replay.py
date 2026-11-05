@@ -42,6 +42,21 @@ class ReplayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(shared["diaries"], [])
         self.assertEqual(shared["events"][0]["reason"], "")
 
+    async def test_default_pair_prefers_most_recent_window_fills_over_latest_fill(self):
+        engine = Engine(":memory:")
+        self.addCleanup(engine.db.close)
+        game = engine.create({"pairs": ["EUR/USD", "GBP/USD"]})
+        plugin = SimpleNamespace(engine=engine, settings=lambda: {})
+        DiaryStore(engine)
+        DecisionService(plugin)
+        with engine.transaction():
+            for pair in ("GBP/USD", "GBP/USD", "EUR/USD"):
+                engine.log(game, "ai", "open", "测试", {"position": {"pair": pair, "entry": "1.1"}})
+        result = await review(plugin, game["id"], include_candles=False)
+        self.assertEqual(result["pair"], "GBP/USD")
+        result = await review(plugin, game["id"], pair="EUR/USD", include_candles=False)
+        self.assertEqual(result["pair"], "EUR/USD")
+
     def test_all_chart_types_generate_png(self):
         now = int(time.time())
         event = dict(
