@@ -31,7 +31,7 @@
 .replay-legend { margin: 0; padding: 0 12px 10px; font-size: .8rem; color: var(--review-muted); }
 .replay-chart.is-drawn { height: clamp(440px, 58vh, 660px); }
 .replay-timeline-top select { width: auto; }
-@media (min-width: 901px) { .replay-detail { max-height: clamp(540px, 72vh, 820px); overflow: auto; } }
+@media (min-width: 901px) { .replay-detail { max-height: clamp(540px, 85vh, 1000px); overflow: auto; } }
 @media (max-width: 600px) { .replay-chart.is-drawn { height: 390px; } }
 .replay-timeline { list-style: none; margin: 0; padding: 0; max-height: 350px; overflow: auto; }
 .replay-row { display: grid; width: 100%; grid-template-columns: minmax(110px,1fr) minmax(75px,1fr) auto auto; text-align: left;
