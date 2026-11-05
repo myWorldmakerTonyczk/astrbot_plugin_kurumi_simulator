@@ -782,6 +782,7 @@
             <legend>允许交易的货币对（直接勾选，可多选）</legend>
             <div id="pairs"></div>
             <button type="button" id="pairs-all">全选</button>
+            <span id="create-pair-count" class="caption" aria-live="polite"></span>
           </fieldset>
           <label
             >双边手续费率<input
@@ -840,6 +841,7 @@
       </div>
       <section class="panel">
         <p id="binding-instance-name" class="caption"></p>
+        <p id="instance-trading-pairs" class="caption"></p>
         <h3>AI 看盘绑定</h3>
         <form id="binding">
           <label

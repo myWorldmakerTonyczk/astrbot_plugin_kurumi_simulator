@@ -387,6 +387,7 @@ with sync_playwright() as p:
     page.locator("#create-loan-enabled").uncheck()
     page.get_by_role("button", name="创建交易实例", exact=True).click()
     page.wait_for_function("window.lastRequest?.body?.action===`create`")
+    assert len(page.evaluate("window.lastRequest.body.options.pairs")) == 6
     assert page.evaluate("window.lastRequest.body.options.loan_enabled") is False
     assert page.evaluate("window.lastRequest.body.options.allow_deposit") is False
     assert page.evaluate("window.lastRequest.body.options.loan_limit") == "4321"

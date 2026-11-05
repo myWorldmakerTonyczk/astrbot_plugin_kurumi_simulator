@@ -343,6 +343,7 @@ function render() {
       label.append(input, node("span", pairLabel(pair)));
       $("pairs").append(label);
     }
+    updatePairCount();
   }
   if (!connectionDirty && !$("connection").contains(document.activeElement)) {
     const connection = state.connection;
@@ -863,10 +864,15 @@ $("create").elements.initial.addEventListener("input", () => {
     if (initial > 0) $("loan-limit").value = (initial * 2).toFixed(2);
   }
 });
-$("pairs-all").onclick = () =>
-  $("pairs")
-    .querySelectorAll("input")
-    .forEach((i) => (i.checked = true));
+function updatePairCount() {
+  const count = $("pairs").querySelectorAll("input:checked").length;
+  $("create-pair-count").textContent = "已选 " + count + " 个货币对";
+}
+$("pairs").addEventListener("change", updatePairCount);
+$("pairs-all").onclick = () => {
+  $("pairs").querySelectorAll("input").forEach((i) => (i.checked = true));
+  updatePairCount();
+};
 function userBindingFields() {
   const kind = $("user-binding-type").value;
   for (const row of document.querySelectorAll("[data-binding-kind]")) {
@@ -976,6 +982,8 @@ $("open-instance-settings").onclick = () => {
   if (!gid) return;
   $("binding-instance-name").textContent =
     state?.current?.game.name || "当前实例";
+  const pairs = state.current.game.pairs;
+  $("instance-trading-pairs").textContent = "开局货币对（" + pairs.length + " 个）　" + pairs.map(pairLabel).join("、");
   $("instance-settings-dialog").showModal();
   tradingNotices.setScope("");
 };

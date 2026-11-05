@@ -52,7 +52,7 @@ export class ReplayPanel {
       <p class="replay-status" role="status"></p>
       <div class="replay-layout">
         <nav class="replay-pairs" aria-label="复盘货币对" hidden>
-          <details open><summary>货币对 <span class="replay-pair-selection"></span></summary>
+          <details open><summary>货币对 <span class="replay-pair-count"></span><span class="replay-pair-selection"></span></summary>
             <div class="replay-pair-list"></div>
           </details>
         </nav>
@@ -74,6 +74,7 @@ export class ReplayPanel {
     this.form = root.querySelector("form");
     this.pairNav = root.querySelector(".replay-pairs");
     this.pairList = this.pairNav.querySelector(".replay-pair-list");
+    this.pairCount = this.pairNav.querySelector(".replay-pair-count");
     this.pairSelection = this.pairNav.querySelector(".replay-pair-selection");
     this.market = root.querySelector(".replay-market");
     this.marketSlot = root.querySelector(".replay-market-slot");
@@ -149,6 +150,7 @@ export class ReplayPanel {
 
   renderPairs(pairs, stats = [], selected = "") {
     this.pairNav.hidden = !pairs.length;
+    this.pairCount.textContent = String(pairs.length);
     this.pairList.replaceChildren();
     this.pairSelection.textContent = selected || (pairs.length === 1 ? pairs[0] : "");
     const ranked = new Map(stats.filter(row => pairs.includes(row.pair)).map(row => [row.pair, row]));
