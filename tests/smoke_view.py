@@ -135,8 +135,8 @@ with sync_playwright() as p:
     assert page.locator("[data-page=journal]").is_hidden()
     assert page.locator("[data-page=memory]").is_hidden()
     page.locator("#instance-directory .instance-card").first.click()
-    page.wait_for_selector("#desk:not([hidden])")
-    page.get_by_role("button", name="AI 复盘", exact=True).click()
+    page.wait_for_selector("#replay:not([hidden])")
+    assert page.locator("#instance-nav button").first.inner_text() == "AI 复盘"
     page.wait_for_selector(".replay-row")
     single_pair = page.get_by_role("navigation", name="复盘货币对")
     assert single_pair.get_by_role("button", name="EUR/USD", pressed=True).is_visible()
@@ -404,7 +404,7 @@ with sync_playwright() as p:
         == ["umo", "qq", "random"]
     )
 
-    page.wait_for_selector("[data-page=overview]:not([hidden])")
+    page.wait_for_selector("#replay:not([hidden])")
     assert page.locator("#create-instance-dialog").is_hidden()
     for kind, value in [("qq", "123456789"), ("random", "")]:
         page.locator("#back-to-catalog").click()
@@ -431,7 +431,7 @@ with sync_playwright() as p:
                 == value
             )
         page.wait_for_selector("#create-instance-dialog:not([open])", state="attached")
-        page.wait_for_selector("#desk:not([hidden])")
+        page.wait_for_selector("#replay:not([hidden])")
     page.locator("#open-instance-settings").click()
     page.wait_for_selector("#instance-settings-dialog[open]")
     page.screenshot(path=str(out / "instance-settings-dialog.png"), full_page=True)
@@ -540,6 +540,8 @@ with sync_playwright() as p:
     )
     page.locator("#back-to-catalog").click()
     page.locator("#instance-directory .instance-card").first.click()
+    page.wait_for_selector("#replay:not([hidden])")
+    page.get_by_role("button", name="交易工作台", exact=True).click()
     page.wait_for_selector("#desk:not([hidden])")
     page.get_by_role("button", name="计划与经验", exact=True).click()
     page.locator("#diary-refresh").click()
@@ -652,7 +654,7 @@ with sync_playwright() as p:
     page.wait_for_function(
         "document.querySelector('#title').textContent==='乙的第一盘'"
     )
-    assert page.locator("[data-page=overview]").is_visible()
+    assert page.locator("#replay").is_visible()
     page.get_by_role("button", name="交易日志", exact=True).click()
     assert "乙的第一盘专属日志" in page.locator("#logs").inner_text()
     page.get_by_role("button", name="设置", exact=True).click()
@@ -675,6 +677,8 @@ with sync_playwright() as p:
     assert not page.locator("#trade-notice").is_visible()
 
     page.locator('.instance-card[data-instance-id="bob-one"]').click()
+    page.wait_for_selector("#replay:not([hidden])")
+    page.get_by_role("button", name="交易工作台", exact=True).click()
     page.wait_for_selector("#desk:not([hidden])")
     page.screenshot(path=str(out / "workspace-instances.png"), full_page=True)
     page.wait_for_timeout(100)

@@ -47,7 +47,7 @@ let state = null,
   posting = false;
 let priceChart;
 let workspaceMode = "instances",
-  instancePage = "overview",
+  instancePage = "replay",
   selectedOwner = "";
 const expandedPositions = new Set();
 let connectionDirty = false;
@@ -178,7 +178,7 @@ for (const button of document.querySelectorAll("[data-settings-anchor]"))
 function selectInstance(instance) {
   selectedOwner = instance.ownerId;
   gid = instance.id;
-  instancePage = "overview";
+  instancePage = "replay";
   if (state?.current?.game.id !== gid) state.current = null;
   workspace("instances");
   load();
@@ -842,7 +842,7 @@ submit("create", async (p) => {
   gid = result.id;
 
   $("create-instance-dialog").close();
-  instancePage = "overview";
+  instancePage = "replay";
   workspace("instances");
   await load();
 });
