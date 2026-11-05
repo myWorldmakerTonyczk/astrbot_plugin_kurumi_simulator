@@ -97,3 +97,24 @@
 .replay-position-arc path { fill: none; stroke-linecap: round; }
 .replay-arc-halo { stroke: #fff; stroke-width: 7px; }
 .replay-arc-ink { stroke: #6941a5; stroke-width: 3px; stroke-dasharray: 7 4; }
+
+.replay-inspector-heading { display: grid; gap: 8px; padding-bottom: 12px; }
+.replay-inspector-heading h3 { font-size: 1.16rem; }
+.replay-inspector-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.replay-inspector-badges span { border-radius: 4px; padding: 3px 7px; background: #e4efe7; font-size: .78rem; }
+.replay-inspector-badges span:first-child { background: #eee7f7; color: #593485; font-weight: 700; }
+.replay-inspector-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1px; margin: 0 0 12px; border: 1px solid var(--review-line); border-radius: 8px; background: var(--review-line); overflow: hidden; }
+.replay-inspector-facts div { padding: 8px 10px; background: #fff; }
+.replay-inspector-facts dt { font-size: .76rem; color: var(--review-muted); }
+.replay-inspector-facts dd { margin: 2px 0 0; font-weight: 650; font-variant-numeric: tabular-nums; }
+.replay-inspector-section { padding: 11px 0; border-top: 1px solid var(--review-line); }
+.replay-inspector-section h4 { margin: 0 0 6px; font-size: .91rem; }
+.replay-inspector-section summary { font-size: .91rem; font-weight: 700; cursor: pointer; }
+.replay-copy p, .replay-copy-preview { margin: 6px 0 0; }
+.replay-copy-preview { display: block; font-weight: 400; color: var(--review-muted); font-size: .84rem; line-height: 1.5; }
+.replay-inspector-section[open] .replay-copy-preview { display: none; }
+.replay-plan-group { margin: 9px 0 0; border-left: 3px solid #d9c9eb; padding-left: 9px; }
+.replay-plan-group strong { color: #593485; font-size: .82rem; }
+.replay-inspector-section .replay-related { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; width: 100%; border-left: 3px solid #8560b3; }
+.replay-related time { font-size: .76rem; color: var(--review-muted); }
+.replay-inspector-sample { margin: 4px 0 10px; }

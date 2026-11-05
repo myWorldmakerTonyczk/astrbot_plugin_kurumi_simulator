@@ -446,9 +446,27 @@ export class ReplayPanel {
     this.detail(event);
   }
 
+  textSection(label, text, grouped = false) {
+    const body = el("div", null, "replay-copy");
+    const pieces = grouped ? text.split(/(?:^|\n)[ \t]*【([^】\n]+)】/u) : [text];
+    if (pieces[0].trim()) body.append(el("p", pieces[0].trim(), "replay-text"));
+    for (let i = 1; i < pieces.length; i += 2) {
+      const group = el("div", null, "replay-plan-group");
+      group.append(el("strong", pieces[i]), el("p", pieces[i + 1].trim(), "replay-text"));
+      body.append(group);
+    }
+    const fold = text.length > 180;
+    const section = el(fold ? "details" : "section", null, "replay-inspector-section");
+    const heading = el(fold ? "summary" : "h4", label);
+    if (fold) heading.append(el("span", text.slice(0, 100).trimEnd() + "…", "replay-copy-preview"));
+    section.append(heading, body);
+    return section;
+  }
+
   links(root, events) {
     for (const event of events) {
-      const button = el("button", stamp(event.time) + " · " + title(event), "replay-related");
+      const button = el("button", null, "replay-related");
+      button.append(el("strong", title(event)), el("time", stamp(event.time)));
       button.type = "button";
       button.onclick = () => this.select(event);
       root.append(button);
@@ -457,38 +475,58 @@ export class ReplayPanel {
 
   detail(event) {
     const root = this.root.querySelector(".replay-detail");
-    root.replaceChildren(el("h3", event ? title(event) : "这一刻发生了什么"));
-    if (!event) { root.append(el("p", "点击图上的成交点，或从时间线选择一条记录。")); return; }
-    root.append(el("p", stamp(event.time) + " · " + (event.outcome || states[event.status] || event.status), "replay-muted"));
+    root.replaceChildren();
+    root.scrollTop = 0;
+    if (!event) {
+      root.append(el("h3", "这一刻发生了什么"), el("p", "点击图上的成交点，或从时间线选择一条记录。"));
+      return;
+    }
+    const heading = el("div", null, "replay-inspector-heading");
+    const badges = el("div", null, "replay-inspector-badges");
+    const actor = event.actor === "ai" ? "AI" : event.actor === "system" ? "系统" : "用户";
+    badges.append(el("span", actor), el("span", event.outcome || states[event.status] || event.status));
+    heading.append(el("h3", title(event)), badges, el("time", stamp(event.time), "replay-muted"));
+    root.append(heading);
     const position = event.position;
     if (position?.pair) {
-      const parts = [position.pair, position.side === "buy" ? "做多" : "做空", position.units + " 单位"];
-      if (event.price != null) parts.push("成交价 " + event.price, "手续费 $" + number(event.fee));
-      if (position.sl) parts.push("止损 " + position.sl);
-      if (position.tp) parts.push("止盈 " + position.tp);
+      const fields = [["品种", position.pair], ["方向", position.side === "buy" ? "做多" : "做空"], ["数量", position.units + " 单位"]];
+      if (event.price != null) fields.push(["成交价", event.price], ["手续费", "$" + number(event.fee)]);
+      if (position.sl) fields.push(["止损", position.sl]);
+      if (position.tp) fields.push(["止盈", position.tp]);
       if (event.action === "close" && position.pnl != null) {
         const entry = this.data.events.find(e => e.action === "open" && fill(e) && e.position.id === position.id);
-        if (entry) parts.push("扣双边手续费 $" + number(Number(position.pnl) - event.fee - entry.fee));
-        else parts.push("平仓毛盈亏 $" + number(position.pnl));
-        if (position.created) parts.push("持仓 " + Math.max(0, Math.round((event.time - position.created) / 60)) + " 分钟");
+        const pnl = Number(position.pnl) - (entry ? event.fee + entry.fee : 0);
+        fields.push([entry ? "扣双边费后" : "平仓毛盈亏", (pnl < 0 ? "−" : pnl > 0 ? "+" : "") + "$" + number(Math.abs(pnl))]);
+        if (position.created) fields.push(["持仓时间", Math.max(0, Math.round((event.time - position.created) / 60)) + " 分钟"]);
       }
-      root.append(el("p", parts.join(" · ")));
+      const facts = el("dl", null, "replay-inspector-facts");
+      for (const [label, value] of fields) {
+        const field = el("div");
+        field.append(el("dt", label), el("dd", value));
+        facts.append(field);
+      }
+      root.append(facts);
     }
-    if (event.reason && event.reason !== title(event)) root.append(el("p", event.reason, "replay-text"));
-    if (event.text) root.append(el("p", event.text, "replay-text"));
+    if (event.reason && event.reason !== title(event)) root.append(this.textSection(event.actor === "ai" ? "操作理由" : "触发原因", event.reason));
+    if (event.text) root.append(this.textSection(event.action === "plan" ? "策略内容" : event.status === "failed" ? "失败详情" : "任务记录", event.text, true));
     const mark = this.data.marks.findLast(m => m.time < Math.floor(event.time));
-    if (mark) root.append(el("p", "此前最近采样 · 回撤 " + number(mark.drawdown) + "% · 净值 $" + number(mark.equity), "replay-muted"));
+    if (mark) root.append(el("p", "此前最近采样 · 回撤 " + number(mark.drawdown) + "% · 净值 $" + number(mark.equity), "replay-muted replay-inspector-sample"));
     const related = this.data.events.filter(e => e !== event && (
       (position?.id && e.position?.id === position.id) || (event.job && e.job === event.job) ||
       event.related?.includes(e.id) || e.related?.includes(event.id)));
-    if (related.length) { root.append(el("h4", "关联记录")); this.links(root, related.slice(0, 20)); }
+    if (related.length) {
+      const section = el("section", null, "replay-inspector-section");
+      section.append(el("h4", "关联记录"));
+      this.links(section, related.slice(0, 20));
+      root.append(section);
+    }
     const plan = this.data.events.findLast(e => e.action === "plan" && e.status === "success" && e.time < event.time);
     if (this.data.private !== false) {
-      root.append(el("h4", "当时策略"), el("p", plan?.text || this.data.baseline || "未记录", "replay-text"));
+      root.append(this.textSection("当时策略", plan?.text || this.data.baseline || "未记录", true));
       for (const diary of this.data.diaries) {
         const date = new Intl.DateTimeFormat("sv-SE", {timeZone: diary.zone, dateStyle: "short"}).format(new Date(event.time * 1000));
         if (date !== diary.day) continue;
-        const block = el("details");
+        const block = el("details", null, "replay-inspector-section replay-diary-entry");
         block.append(el("summary", date + " · 日记回顾"), el("p", diary.content, "replay-text"));
         root.append(block);
       }
