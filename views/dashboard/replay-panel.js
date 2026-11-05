@@ -126,11 +126,16 @@ export class ReplayPanel {
   }
 
   open(scope, pairs) {
-    if (!scope || this.scope === scope) return;
+    if (!scope) return;
+    if (this.scope === scope && this.pairs.join() === pairs.join()) return;
+    if (this.scope !== scope) {
+      this.form.elements.date.value = "";
+      this.requestedPair = "";
+    } else if (!pairs.includes(this.requestedPair)) {
+      this.requestedPair = "";
+    }
     this.scope = scope;
-    this.form.elements.date.value = "";
-    this.requestedPair = "";
-    this.pairs = pairs;
+    this.pairs = [...pairs];
     this.renderPairs(pairs);
     this.load();
   }
@@ -192,6 +197,7 @@ export class ReplayPanel {
       const data = await this.fetchReview(this.scope, {pair: this.requestedPair, days: Number(form.days.value), end});
       if (request !== this.version) return;
       this.data = data;
+      this.pairs = data.pairs;
       this.renderPairs(this.pairs, data.pair_stats, data.pair);
       this.root.querySelector(".replay-current-pair").textContent = data.pair;
       status.textContent = [
