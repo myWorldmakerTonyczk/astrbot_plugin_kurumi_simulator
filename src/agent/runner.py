@@ -9,6 +9,7 @@ from astrbot.core.platform.astrbot_message import AstrBotMessage, MessageMember
 from astrbot.core.platform.platform_metadata import PlatformMetadata
 from astrbot.core.platform.message_type import MessageType
 from ..core.engine import dump
+from ..diary.store import redact
 from .llm import ensure_available, tool_loop
 from ..users.policy import change_notices
 from ..notifications.settings import DEFAULTS as NOTICE_DEFAULTS
@@ -72,35 +73,39 @@ async def reference_context(plugin, game):
     if not plugin.identity.can_reference(game.get("owner_id"), umo):
         return [], game.get("persona", ""), "未关联已验证的主参考会话"
     manager = getattr(plugin.context, "conversation_manager", None)
-    if not manager:
-        return [], game.get("persona", ""), "平台没有提供会话管理器"
-    cid = await manager.get_curr_conversation_id(umo)
-    if not cid:
-        return [], game.get("persona", ""), "关联会话没有聊天历史"
-    conv = await manager.get_conversation(umo, cid)
-    if not conv:
-        return [], game.get("persona", ""), "关联会话不存在"
-    raw = json.loads(conv.history) if isinstance(conv.history, str) else conv.history
-    rows = []
-    for item in raw or []:
-        if not isinstance(item, dict) or item.get("role") not in ("user", "assistant"):
-            continue
-        content = item.get("content")
-        if isinstance(content, list):
-            content = "\n".join(
-                p.get("text", "")
-                for p in content
-                if isinstance(p, dict) and p.get("type") in ("text", "input_text")
-            )
-        if isinstance(content, str) and content.strip():
-            rows.append(dict(role=item["role"], content=content))
+    cid = await manager.get_curr_conversation_id(umo) if manager else None
+    conv = await manager.get_conversation(umo, cid) if cid else None
+    persona = getattr(conv, "persona_id", None) or game.get("persona", "")
     count = int(game.get("history_count", 20))
-    rows = rows[-count:] if count else []
-    return (
-        rows,
-        getattr(conv, "persona_id", None) or game.get("persona", ""),
-        "已读取关联会话最近发言",
-    )
+    if count <= 0:
+        return [], persona, "已设置为不带聊天记录"
+
+    raw = getattr(conv, "history", None)
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            raw = None
+    if isinstance(raw, list):
+        rows = []
+        for item in raw:
+            if not isinstance(item, dict) or item.get("role") not in ("user", "assistant"):
+                continue
+            content = item.get("content")
+            if isinstance(content, list):
+                content = "\n".join(
+                    part["text"]
+                    for part in content
+                    if isinstance(part, dict) and part.get("type") in ("text", "input_text")
+                    and isinstance(part.get("text"), str)
+                )
+            if isinstance(content, str) and content.strip():
+                rows.append(dict(role=item["role"], content=redact(content)))
+        return rows[-count:], persona, "已读取关联会话最近发言" if rows else "关联会话没有可用的聊天正文"
+
+    diary = getattr(plugin, "diary", None)
+    rows = diary.store.recent_chat(game["id"], umo, count) if diary else []
+    return rows, persona, "已读取同一会话的近期归档" if rows else "关联会话没有可用的聊天历史"
 
 
 def make_tools(plugin, gid, expected, called, read_only=False):

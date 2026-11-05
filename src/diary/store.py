@@ -68,6 +68,14 @@ class DiaryStore:
                 ),
             )
 
+    def recent_chat(self, gid, umo, limit):
+        rows = self.db.execute(
+            "SELECT role,content FROM diary_chat WHERE game=? AND umo=? "
+            "AND role IN ('user','assistant') ORDER BY created DESC,seq DESC LIMIT ?",
+            (gid, umo, limit),
+        ).fetchall()
+        return [dict(row) for row in reversed(rows)]
+
     def count_logs(self, gid, start, end):
         # Background summaries/settings are not trading activity.
         return self.db.execute(

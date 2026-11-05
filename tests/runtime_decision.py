@@ -15,6 +15,7 @@ from src.core.engine import Engine
 from src.users.identity import Identity
 from src.diary.scheduler import DiaryService
 from src.agent.decisions import DecisionService
+from src.agent.runner import reference_context
 
 
 class OfflineProvider(Provider):
@@ -41,7 +42,10 @@ class OfflineProvider(Provider):
         assert tools.get_tool("kurumi_write_plan") is None
         assert tools.get_tool("kurumi_set_notifications") is None
         if self.calls == 1:
-            assert "read_only" in str(kwargs["contexts"])
+            context = str(kwargs["contexts"])
+            assert "read_only" in context
+            assert "近期用户发言" in context and "近期助手回复" in context
+            assert "较早用户发言" not in context
             return LLMResponse(
                 role="assistant",
                 tools_call_name=["kurumi_watch_market"],
@@ -59,7 +63,7 @@ async def main():
     game = engine.create(
         {"user_binding": {"type": "umo", "values": ["bot:FriendMessage:123456"]}}
     )
-    game.update(status="ended", provider="offline-review", persona="test")
+    game.update(status="ended", provider="offline-review", persona="test", history_count=2)
     engine.save(game)
     provider = OfflineProvider()
     context = Context.__new__(Context)
@@ -70,6 +74,15 @@ async def main():
     context.persona_manager = SimpleNamespace(
         get_persona=AsyncMock(return_value=SimpleNamespace(system_prompt="你是小澪。"))
     )
+    context.conversation_manager = SimpleNamespace(
+        get_curr_conversation_id=AsyncMock(return_value="cid"),
+        get_conversation=AsyncMock(return_value=SimpleNamespace(history=[
+            {"role": "user", "content": "较早用户发言"},
+            {"role": "user", "content": [{"type": "text", "text": "近期用户发言"}]},
+            {"role": "tool", "content": "工具结果"},
+            {"role": "assistant", "content": "近期助手回复"},
+        ], persona_id="test")),
+    )
     plugin = SimpleNamespace(
         engine=engine,
         identity=identity,
@@ -79,6 +92,18 @@ async def main():
     )
     plugin.diary = DiaryService(plugin)
     plugin.decisions = DecisionService(plugin)
+    umo = game["reference_umo"]
+    engine.db.execute(
+        "INSERT INTO diary_chat(game,umo,message_id,role,content,created) VALUES(?,?,?,?,?,?)",
+        (game["id"], umo, "1", "user", "归档聊天", time.time()),
+    )
+    context.conversation_manager.get_curr_conversation_id.return_value = None
+    rows, _, _ = await reference_context(plugin, game)
+    assert rows == [{"role": "user", "content": "归档聊天"}]
+    rows, _, _ = await reference_context(plugin, dict(game, history_count=0))
+    assert rows == []
+    context.conversation_manager.get_curr_conversation_id.return_value = "cid"
+
     engine.log(game, "system", "end", "触发游戏结束条件", {"bankrupt": True})
     now = time.time()
     plugin.decisions.scan(now)
