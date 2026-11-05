@@ -140,3 +140,13 @@
 .replay-activity-runs > strong { font-size: .82rem; color: var(--review-muted); }
 .replay-activity-runs .replay-run { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; text-align: left; }
 .replay-run time { font-size: .78rem; color: var(--review-muted); }
+
+.replay-current-pair { color: var(--review-muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (min-width: 901px) and (min-height: 700px) {
+  [data-page="replay"] .replay-main { overflow: clip; }
+  [data-page="replay"] .replay-market {
+    position: sticky; top: var(--replay-sticky-top, 80px); z-index: 12;
+    background: var(--review-paper); border-bottom: 1px solid var(--review-line);
+  }
+  [data-page="replay"] .replay-chart.is-drawn { height: clamp(360px, 49vh, 580px); }
+}

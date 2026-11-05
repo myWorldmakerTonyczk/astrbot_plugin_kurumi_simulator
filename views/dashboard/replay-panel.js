@@ -52,9 +52,11 @@ export class ReplayPanel {
       <div class="replay-layout">
         <nav class="replay-pairs" aria-label="复盘货币对" hidden></nav>
         <div class="replay-main"><div class="replay-stats"></div>
-          <div class="replay-chart-top"><strong>行情与成交</strong></div>
-          <p class="replay-legend" hidden></p>
-          <div class="replay-chart" aria-label="品种 K 线和成交标记"></div>
+          <section class="replay-market" aria-label="行情与成交">
+            <div class="replay-chart-top"><strong>行情与成交</strong><span class="replay-current-pair"></span></div>
+            <p class="replay-legend" hidden></p>
+            <div class="replay-chart" aria-label="品种 K 线和成交标记"></div>
+          </section>
           <section class="replay-activity" aria-label="AI 决策活动" hidden></section>
           <section class="replay-performance" aria-label="账户表现"></section>
           <div class="replay-timeline-top"><h3>决定与操作</h3>
@@ -66,6 +68,13 @@ export class ReplayPanel {
       </div>`;
     this.form = root.querySelector("form");
     this.pairNav = root.querySelector(".replay-pairs");
+    const header = root.closest(".workspace > main")?.querySelector(":scope > header");
+    if (header) {
+      const updateOffset = () => root.style.setProperty("--replay-sticky-top", header.offsetHeight + "px");
+      this.headerObserver = new ResizeObserver(updateOffset);
+      this.headerObserver.observe(header);
+      updateOffset();
+    }
     this.form.onsubmit = (event) => { event.preventDefault(); this.load(); };
     root.querySelector(".replay-event-filter").onchange = () => this.timeline();
   }
@@ -84,7 +93,7 @@ export class ReplayPanel {
     this.pairNav.hidden = pairs.length <= 1;
     this.pairNav.replaceChildren(el("h3", "货币对"));
     if (pairs.length <= 1) return;
-    const ranked = new Map(stats.map(row => [row.pair, row]));
+    const ranked = new Map(stats.filter(row => pairs.includes(row.pair)).map(row => [row.pair, row]));
     const max = Math.max(1, ...stats.map(row => row.fills));
     for (const pair of [...new Set([...ranked.keys(), ...pairs])]) {
       const {fills, net} = ranked.get(pair) || {fills: 0, net: 0};
@@ -134,7 +143,8 @@ export class ReplayPanel {
       const data = await this.fetchReview(this.scope, {pair: this.requestedPair, days: Number(form.days.value), end});
       if (request !== this.version) return;
       this.data = data;
-      this.renderPairs(data.pairs || this.pairs, data.pair_stats, data.pair);
+      this.renderPairs(this.pairs, data.pair_stats, data.pair);
+      this.root.querySelector(".replay-current-pair").textContent = data.pair;
       status.textContent = [
         stamp(data.start) + " — " + stamp(data.end) + "（北京时间）",
         data.warning, data.truncated ? "记录较多，可缩短范围查看。" : "",
