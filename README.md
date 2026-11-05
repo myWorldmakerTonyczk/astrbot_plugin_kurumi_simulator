@@ -79,3 +79,7 @@ AstrBot插件视图内提供交易工作台、交易日志、计划与经验。K
 ## 开发验证
 
 离线测试：`python -m unittest discover -s tests -q`。另有真实AstrBot运行时、离线模型工具循环和浏览器验证脚本；它们需要本地安装对应框架/浏览器依赖。已验证规则与接口，不代表已使用所有真实模型、行情服务或聊天平台进行线上测试。
+
+## 联系方式
+
+邮箱：[tonyczk3032@outlook.com](mailto:tonyczk3032@outlook.com)
