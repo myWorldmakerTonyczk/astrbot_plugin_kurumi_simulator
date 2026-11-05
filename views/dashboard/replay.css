@@ -14,7 +14,8 @@
 .replay-heading p, .replay-muted, .replay-status { color: var(--review-muted); font-size: .88rem; }
 .replay-filters { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
 .replay-filters label { display: grid; gap: 4px; font-size: .84rem; }
-.replay-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(235px, 29%); gap: 14px; align-items: start; }
+.workspace > main:has(> [data-page="replay"]:not([hidden])) { max-width: none; }
+.replay-layout { display: grid; grid-template-columns: minmax(0, 1fr) clamp(250px, 29%, 420px); gap: 14px; align-items: start; }
 .replay-main, .replay-detail { background: var(--review-paper); border: 1px solid var(--review-line); border-radius: 12px; overflow: hidden; }
 .replay-detail { padding: 16px; overflow-wrap: anywhere; }
 .replay-stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); background: var(--review-mint); }
@@ -23,6 +24,10 @@
 .replay-stats strong, .replay-row time { font-variant-numeric: tabular-nums; }
 .replay-chart-top, .replay-timeline-top { padding: 12px; border-top: 1px solid var(--review-line); }
 .replay-chart { width: 100%; min-height: 90px; }
+.replay-chart.is-drawn { height: clamp(440px, 58vh, 660px); }
+.replay-timeline-top select { width: auto; }
+@media (min-width: 901px) { .replay-detail { max-height: clamp(540px, 72vh, 820px); overflow: auto; } }
+@media (max-width: 600px) { .replay-chart.is-drawn { height: 390px; } }
 .replay-timeline { list-style: none; margin: 0; padding: 0; max-height: 350px; overflow: auto; }
 .replay-row { display: grid; width: 100%; grid-template-columns: minmax(110px,1fr) minmax(75px,1fr) auto auto; text-align: left;
   gap: 8px; align-items: center; border: 0; border-top: 1px solid var(--review-line); border-radius: 0; padding: 10px 12px; background: transparent; color: var(--review-ink); }

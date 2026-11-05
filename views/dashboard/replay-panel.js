@@ -64,6 +64,7 @@ export class ReplayPanel {
     this.scope = "";
     this.chart?.remove();
     this.chart = null;
+    this.root.querySelector(".replay-chart").classList.remove("is-drawn");
     this.data = null;
     this.selected = null;
     this.root.querySelector(".replay-timeline").replaceChildren();
@@ -99,6 +100,7 @@ export class ReplayPanel {
       this.data = null;
       this.chart?.remove();
       this.chart = null;
+      this.root.querySelector(".replay-chart").classList.remove("is-drawn");
       this.stats();
       this.timeline();
       this.detail();
@@ -135,8 +137,13 @@ export class ReplayPanel {
     this.protectionLines = [];
     const root = this.root.querySelector(".replay-chart");
     root.replaceChildren();
+    root.classList.remove("is-drawn");
     const data = this.data;
-    if (!data || !window.LightweightCharts) return;
+    if (!data) return;
+    if (!window.LightweightCharts) {
+      root.append(el("p", "图表组件加载失败，请刷新页面。", "replay-empty"));
+      return;
+    }
     if (!data.candles.length && !data.marks.length) {
       root.append(el("p", "这个时段暂无行情或净值采样。", "replay-empty"));
       return;
@@ -144,8 +151,10 @@ export class ReplayPanel {
     const L = window.LightweightCharts;
     const ink = "#243735";
     const grid = "#e3eae4";
+    // autoSize measures the host, so give it a height before creating the chart.
+    root.classList.add("is-drawn");
     const chart = this.chart = L.createChart(root, {
-      autoSize: true, height: 440, layout: {background: {color: "#f7faf6"}, textColor: ink},
+      autoSize: true, layout: {background: {color: "#f7faf6"}, textColor: ink},
       grid: {vertLines: {color: grid}, horzLines: {color: grid}},
       rightPriceScale: {borderColor: "#d3ded4"},
       timeScale: {timeVisible: true, secondsVisible: false, borderColor: "#d3ded4",

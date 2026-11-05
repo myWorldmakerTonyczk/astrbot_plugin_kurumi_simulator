@@ -133,7 +133,22 @@ with sync_playwright() as p:
     page.wait_for_selector("#desk:not([hidden])")
     page.get_by_role("button", name="AI 复盘", exact=True).click()
     page.wait_for_selector(".replay-row")
-    assert page.locator(".replay-chart canvas").count() >= 2
+    chart_canvases = ".replay-chart canvas"
+    page.wait_for_function(
+        "(selector) => [...document.querySelectorAll(selector)].some(canvas => canvas.getBoundingClientRect().height >= 240)",
+        arg=chart_canvases,
+    )
+    page.locator(".replay-metric").select_option("equity")
+    page.wait_for_function(
+        "(selector) => [...document.querySelectorAll(selector)].some(canvas => canvas.getBoundingClientRect().height >= 240)",
+        arg=chart_canvases,
+    )
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.wait_for_function(
+        "(selector) => [...document.querySelectorAll(selector)].some(canvas => canvas.getBoundingClientRect().height >= 200)",
+        arg=chart_canvases,
+    )
+    page.set_viewport_size({"width": 1440, "height": 1000})
     page.locator(".replay-row").last.click()
     assert "观察到突破" in page.locator(".replay-detail").inner_text()
     assert "等待突破" in page.locator(".replay-detail").inner_text()
