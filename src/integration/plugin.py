@@ -16,6 +16,8 @@ from ..users.identity import Identity
 from ..diary.scheduler import DiaryService
 from .diary_api import DiaryApiMixin
 from .settings_api import SettingsApiMixin
+from .portal_api import PortalApiMixin
+from ..portal.server import Portal, settings as portal_settings
 from ..users import policy
 from ..agent import llm
 from ..notifications.service import NotificationService
@@ -23,7 +25,7 @@ from ..notifications.service import NotificationService
 NAME = "astrbot_plugin_kurumi_simulator"
 
 
-class KurumiMixin(DiaryApiMixin, SettingsApiMixin):
+class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
     def __init__(self, context, config=None):
         super().__init__(context, config)
         self.context, self.config = context, config
@@ -38,6 +40,7 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin):
         self.diary = DiaryService(self)
         self.notifications = NotificationService(self)
         self.decisions = DecisionService(self)
+        self.portal = Portal(self)
         self.instance_locks = {}
         self.history = History(self.engine, self.market)
         self.history_warmed = set()
@@ -47,6 +50,7 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin):
         for route, handler, methods in (
             ("state", self.web_state, ["GET"]),
             ("review", self.web_review, ["GET"]),
+            ("portal-settings", self.web_portal_settings, ["POST"]),
             ("decision-settings", self.web_decision_settings, ["POST"]),
             ("llm-settings", self.web_llm_settings, ["POST"]),
             ("diaries", self.web_diaries, ["GET"]),
@@ -73,6 +77,14 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin):
         return bool(getattr(request, "username", None))
 
     async def initialize(self):
+        config = None
+        try:
+            config = portal_settings(self.settings().get("portal", {}))
+            await self.portal.configure(config)
+        except ValueError as exc:
+            if config is not None:
+                self.portal.config = config
+            self.portal.error = str(exc)
         self.spawn(self.loop())
         self.spawn(self.diary.loop())
         self.spawn(self.notifications.loop())
@@ -85,6 +97,7 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin):
         return task
 
     async def terminate(self):
+        await self.portal.stop()
         for task in list(self.tasks):
             task.cancel()
         await asyncio.gather(*list(self.tasks), return_exceptions=True)
@@ -212,6 +225,7 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin):
                 ),
                 connection=public_settings(self.settings()),
                 diary_settings=self.diary.config(),
+                portal=self.portal.public(),
                 decision_limits=self.decisions.config(),
                 decision=self.decisions.state(gid) if exists else None,
                 llm_settings=llm.public(self.settings().get("llm")),

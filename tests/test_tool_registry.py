@@ -18,6 +18,7 @@ EXPECTED_TOOLS = [
     "kurumi_write_plan",
     "kurumi_price_history",
     "kurumi_send_review_image",
+    "kurumi_send_panel",
 ]
 
 

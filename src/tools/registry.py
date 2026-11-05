@@ -9,6 +9,7 @@ from . import (
     read_journal,
     read_diary,
     send_review_image,
+    send_panel,
     select_instance,
     set_protection,
     set_notifications,
@@ -34,6 +35,7 @@ TOOL_MODULES = (
     write_plan,
     price_history,
     send_review_image,
+    send_panel,
 )
 
 

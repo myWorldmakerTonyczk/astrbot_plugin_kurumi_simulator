@@ -30,6 +30,7 @@
           <button data-settings-anchor="users">用户与权限</button>
           <button data-settings-anchor="api">API与行情连接</button>
           <button data-settings-anchor="diary">每日日记</button>
+          <button data-settings-anchor="portal">用户面板</button>
         </nav>
         <div class="aside-note">
           真实行情<br />虚拟资金<br /><strong>让她自己试试看。</strong>
@@ -67,6 +68,7 @@
         <div class="instance-context" id="instance-context" hidden>
           <span id="instance-breadcrumb" class="caption"></span
           ><button type="button" id="open-instance-settings">实例设置</button>
+          <button type="button" id="portal-revoke" title="撤销这个实例的只读链接和会话">撤销只读链接</button>
         </div>
         <div id="notice" role="status" aria-live="polite">
           正在连接 AstrBot…
@@ -454,6 +456,7 @@
             <button type="button" data-settings-tab="users">用户与权限</button>
             <button type="button" data-settings-tab="api">API与行情连接</button>
             <button type="button" data-settings-tab="diary">每日日记</button>
+            <button type="button" data-settings-tab="portal">用户面板</button>
           </nav>
           <div data-settings-page="users">
             <section class="panel" id="access-scaffold">
@@ -582,6 +585,20 @@
                   class="connection-result"
                 ></div>
               </section>
+          </div>
+          <div data-settings-page="portal" hidden>
+            <section class="card">
+              <h2>独立用户面板</h2>
+              <p class="caption">填写用户可访问的 HTTPS 域名，并将该域名转发到这里的监听端口。启用后，绑定的用户可私聊领取面板。</p>
+              <form id="portal-settings">
+                <label class="check"><input name="enabled" type="checkbox">启用独立面板</label>
+                <label>HTTPS 地址 <input name="origin" type="url" placeholder="https://panel.example.com"></label>
+                <label>监听地址 <select name="bind"><option value="127.0.0.1">本机 127.0.0.1</option><option value="0.0.0.0">容器网络 0.0.0.0</option></select></label>
+                <label>监听端口 <input name="port" type="number" min="1024" max="65535" required value="8791"></label>
+                <button type="submit">保存面板设置</button>
+              </form>
+              <p id="portal-settings-status" role="status"></p>
+            </section>
           </div>
           <div data-settings-page="diary" hidden>
               <section class="panel" id="diary-settings-panel">

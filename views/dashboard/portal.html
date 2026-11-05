@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>久留美 · 交易复盘</title>
+  <link rel="stylesheet" href="/assets/portal.css">
+  <link rel="stylesheet" href="/assets/replay.css">
+  <script src="/assets/lightweight-charts.js" defer></script>
+  <script src="/assets/portal.js" type="module"></script>
+</head>
+<body>
+  <main class="portal">
+    <header class="portal-header">
+      <div><span>久留美模拟器</span><h1 id="portal-title">她的交易记录</h1></div>
+      <button id="portal-logout" type="button" hidden>退出面板</button>
+    </header>
+    <p id="portal-status" role="status"></p>
+    <section id="portal-welcome" class="portal-card">
+      <h2 id="portal-welcome-title">打开你的复盘</h2>
+      <p id="portal-welcome-copy">在机器人私聊里领取只读面板入口。</p>
+      <button id="portal-exchange" type="button" hidden>打开只读面板</button>
+    </section>
+    <section id="portal-review" class="public-replay" hidden></section>
+  </main>
+</body>
+</html>

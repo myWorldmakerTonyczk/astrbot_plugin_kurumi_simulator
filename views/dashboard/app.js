@@ -3,6 +3,7 @@ import { UserManager } from "./user-manager.js";
 import { ModelSettings } from "./model-settings.js";
 import { InstanceNotices } from "./notification-form.js";
 import { DiaryPanel } from "./diary-panel.js";
+import { PortalSettings } from "./portal-settings.js";
 import { ReplayPanel } from "./replay-panel.js";
 import { HistoryChart } from "./history-chart.js";
 import { TradingNotices } from "./notifications.js";
@@ -24,6 +25,7 @@ const userManager = new UserManager(post, load, (user) => {
 });
 const modelSettings = new ModelSettings(post, load);
 const instanceNotices = new InstanceNotices(post, load);
+const portalSettings = new PortalSettings(post, load);
 let settingsPage = "users";
 function showSettings(page) {
   settingsPage = page;
@@ -327,6 +329,7 @@ function render() {
     for(const key of ["stop_loss","take_profit","liquidation","margin_call","end"])form.elements[key].checked=v[key];
   }
   instanceNotices.render(state.instance_access, gid);
+  portalSettings.render(state.portal, gid);
   showSettings(settingsPage);
   workspace(workspaceMode);
   if (!$("pairs").children.length) {
