@@ -841,7 +841,14 @@
       </div>
       <section class="panel">
         <p id="binding-instance-name" class="caption"></p>
-        <p id="instance-trading-pairs" class="caption"></p>
+        <form id="instance-pair-settings">
+          <fieldset class="pair-options">
+            <legend>允许交易的货币对</legend>
+            <div id="instance-trading-pairs"></div>
+            <p class="caption">可多选。有持仓或挂单的货币对须先处理后才能取消。</p>
+          </fieldset>
+          <button type="submit">保存货币对</button>
+        </form>
         <h3>AI 看盘绑定</h3>
         <form id="binding">
           <label

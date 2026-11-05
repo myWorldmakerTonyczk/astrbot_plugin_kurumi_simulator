@@ -260,6 +260,8 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                 raise ValueError("请求必须为对象")
             if body.get("action") in ("pause", "resume"):
                 raise ValueError("暂停按钮已移除，请在实例设置中管理定时自主看盘")
+            if body.get("action") == "update_pairs":
+                return json_response(self.engine.update_pairs(body["game"], body.get("pairs")))
             if body.get("action") == "create":
                 options = body.get("options", {})
                 if not isinstance(options, dict) or "user_binding" not in options:

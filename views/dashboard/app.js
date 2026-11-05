@@ -333,16 +333,7 @@ function render() {
   showSettings(settingsPage);
   workspace(workspaceMode);
   if (!$("pairs").children.length) {
-    for (const [index, pair] of state.pairs.entries()) {
-      const label = node("label", undefined, "check"),
-        input = node("input");
-      input.type = "checkbox";
-      input.name = "allowed-pair";
-      input.value = pair;
-      input.checked = index === 0;
-      label.append(input, node("span", pairLabel(pair)));
-      $("pairs").append(label);
-    }
+    renderPairCheckboxes($("pairs"), [state.pairs[0]]);
     updatePairCount();
   }
   if (!connectionDirty && !$("connection").contains(document.activeElement)) {
@@ -864,6 +855,25 @@ $("create").elements.initial.addEventListener("input", () => {
     if (initial > 0) $("loan-limit").value = (initial * 2).toFixed(2);
   }
 });
+function renderPairCheckboxes(container, selected) {
+  container.replaceChildren();
+  for (const pair of state.pairs) {
+    const label = node("label", undefined, "check");
+    const input = node("input");
+    input.type = "checkbox";
+    input.value = pair;
+    input.checked = selected.includes(pair);
+    label.append(input, node("span", pairLabel(pair)));
+    container.append(label);
+  }
+}
+submit("instance-pair-settings", async () => {
+  const pairs = [...$("instance-trading-pairs").querySelectorAll("input:checked")].map(input => input.value);
+  if (!pairs.length) throw Error("请至少勾选一个货币对");
+  await post("command", {action: "update_pairs", game: gid, pairs});
+  $("instance-settings-dialog").close();
+  await load();
+});
 function updatePairCount() {
   const count = $("pairs").querySelectorAll("input:checked").length;
   $("create-pair-count").textContent = "已选 " + count + " 个货币对";
@@ -982,8 +992,7 @@ $("open-instance-settings").onclick = () => {
   if (!gid) return;
   $("binding-instance-name").textContent =
     state?.current?.game.name || "当前实例";
-  const pairs = state.current.game.pairs;
-  $("instance-trading-pairs").textContent = "开局货币对（" + pairs.length + " 个）　" + pairs.map(pairLabel).join("、");
+  renderPairCheckboxes($("instance-trading-pairs"), state.current.game.pairs);
   $("instance-settings-dialog").showModal();
   tradingNotices.setScope("");
 };

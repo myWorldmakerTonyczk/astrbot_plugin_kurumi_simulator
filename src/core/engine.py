@@ -121,15 +121,30 @@ class Engine:
             )
         ]
 
+    @staticmethod
+    def validate_pairs(pairs):
+        if not isinstance(pairs, list) or not pairs or any(pair not in PAIRS for pair in pairs):
+            raise ValueError("请至少选择一个支持的货币对")
+        return list(dict.fromkeys(pairs))
+
+    def update_pairs(self, gid, pairs):
+        pairs = self.validate_pairs(pairs)
+        with self.transaction():
+            game = self.get(gid)
+            blocked = {row["pair"] for row in game["positions"] + game.get("orders", [])} - set(pairs)
+            if blocked:
+                raise ValueError("请先处理以下货币对的持仓或挂单：" + "、".join(sorted(blocked)))
+            if game["pairs"] != pairs:
+                before = game["pairs"]
+                game["pairs"] = pairs
+                game["action_revision"] = game.get("action_revision", 0) + 1
+                self.save(game)
+                self.log(game, "human", "update_pairs", "调整允许交易的货币对", {"before": before, "pairs": pairs})
+        return {"ok": True}
+
     def create(self, options):
         initial = positive(options.get("initial", "10000"))
-        pairs = options.get("pairs", ["EUR/USD"])
-        if (
-            not isinstance(pairs, list)
-            or not pairs
-            or any(p not in PAIRS for p in pairs)
-        ):
-            raise ValueError("请选择支持的货币对")
+        pairs = self.validate_pairs(options.get("pairs", ["EUR/USD"]))
         leverage = positive(options.get("leverage", 100))
         if leverage > 100:
             raise ValueError("初版杠杆范围为 1～100")
@@ -157,7 +172,7 @@ class Engine:
             balance=str(initial),
             invested=str(initial),
             created=time.time(),
-            pairs=list(dict.fromkeys(pairs)),
+            pairs=pairs,
             leverage=str(leverage),
             fee_rate=str(fee),
             fees="0",
