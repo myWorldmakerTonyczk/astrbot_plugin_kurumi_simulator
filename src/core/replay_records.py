@@ -13,10 +13,14 @@ def initialize(db):
         drawdown REAL NOT NULL, PRIMARY KEY(game,t))""")
 
 
-def sample(db, game, now=None):
+def sample(db, game, now=None, *, force=False):
     """Persist real marks using the ledger's cash-flow-adjusted index."""
     now = time.time() if now is None else now
-    stamp = int(now // 60) * 60
+    stamp = int(now)
+    if not force and db.execute(
+        "SELECT 1 FROM replay_equity WHERE game=? AND t>? LIMIT 1", (game["id"], stamp - 60)
+    ).fetchone():
+        return
     index, peak = float(game["index"]), float(game["peak"])
     drawdown = max(0, (1 - index / peak) * 100)
     db.execute(

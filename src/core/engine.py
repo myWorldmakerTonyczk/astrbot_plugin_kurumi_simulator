@@ -215,7 +215,7 @@ class Engine:
                 game["notifications"] = notice_defaults(self.db, game["owner_id"])
             game["last_equity"] = str(initial)
             self.save(game)
-            sample(self.db, game)
+            sample(self.db, game, force=True)
             self.log(game, "human", "create", "创建虚拟游戏", {"initial": str(initial)})
         return game
 
@@ -540,7 +540,7 @@ class Engine:
             self.mark(game) if action in ("open", "close", "borrow", "repay") else None
             self.save(game)
             if action in {"open", "close", "deposit", "borrow", "repay"}:
-                sample(self.db, game)
+                sample(self.db, game, force=True)
             result = {"ok": True, "revision": game["revision"], "request_id": key}
             self.db.execute(
                 "INSERT INTO requests VALUES(?,?,?)", (gid, key, dump(result))
@@ -661,7 +661,7 @@ class Engine:
             ):
                 game["action_revision"] = game.get("action_revision", 0) + 1
             self.save(game)
-            sample(self.db, game)
+            sample(self.db, game, force=original_positions != dump(game["positions"]) or original_status != game["status"])
 
     def snapshot(self, gid):
         game = self.get(gid)

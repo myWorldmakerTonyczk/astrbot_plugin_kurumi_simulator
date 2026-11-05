@@ -49,6 +49,10 @@ def _compact_marks(rows):
 async def review(plugin, gid, pair="", days=1, end=0, *, private=True, include_candles=True):
     game = plugin.engine.get(gid)
     db = plugin.engine.db
+    now = time.time()
+    if type(end) is not int or not 0 <= end <= now:
+        raise ValueError("复盘结束时间无效")
+    before = end + 1 if end else 0
     if not pair:
         recent = db.execute(
             """SELECT json_extract(data,'$.detail.position.pair') FROM logs
@@ -61,9 +65,6 @@ async def review(plugin, gid, pair="", days=1, end=0, *, private=True, include_c
         pair = recent[0] if recent and recent[0] in game["pairs"] else game["pairs"][0]
     if pair not in game["pairs"] or type(days) is not int or days not in PERIOD_BY_DAYS:
         raise ValueError("请选择实例内的品种及 1、7 或 30 天")
-    now = time.time()
-    if type(end) is not int or not 0 <= end <= now:
-        raise ValueError("复盘结束时间无效")
     end = end or now
     start = end - days * 86400
     period = PERIOD_BY_DAYS[days]
@@ -71,7 +72,7 @@ async def review(plugin, gid, pair="", days=1, end=0, *, private=True, include_c
     provider = source(settings)
     history = {"bars": [], "warning": ""}
     if include_candles:
-        history = await plugin.history.page(settings, pair, period, int(end) + 1, 200)
+        history = await plugin.history.page(settings, pair, period, before, 200)
     rows = db.execute(
         """SELECT seq,data FROM logs WHERE game=? AND created>=? AND created<=?
            AND json_extract(data,'$.action') IN ('open','close','protect','plan','observe','analysis','margin_call','end')
@@ -90,15 +91,20 @@ async def review(plugin, gid, pair="", days=1, end=0, *, private=True, include_c
         operations = [item for item in events if item["job"] == jid]
         if status in {"success", "failed"} and updated > end:
             status, result, error = "running", "", ""
+        completed = json.loads(result) if result else {}
         outcome = ""
         if status == "success":
-            if any(e["action"] in {"open", "close"} and e["status"] == "success" for e in operations):
+            calls = set(completed.get("tool_calls") or ())
+            actions = calls | {e["action"] for e in operations if e["status"] == "success"}
+            if actions & {"open", "close"}:
                 outcome = "已成交"
-            elif any(e["action"] == "observe" and e["status"] == "success" for e in operations):
+            elif "observe" in actions:
                 outcome = "已记录观望"
-            elif operations:
-                outcome = "已完成"
-        summary = json.loads(result).get("summary", "") if result else ""
+            elif any(e["status"] == "rejected" for e in operations):
+                outcome = "操作未执行"
+            elif "tool_calls" in completed:
+                outcome = "已完成，未成交"
+        summary = completed.get("summary", "")
         events.append(dict(
             id=f"job-{jid}", job=jid, time=created, bar=bucket(created, period, provider),
             action="review", actor="ai", status=status, reason=trigger,
@@ -129,6 +135,8 @@ async def review(plugin, gid, pair="", days=1, end=0, *, private=True, include_c
         events = [event for event in events if event["action"] in {"open", "close"} and event["status"] == "success"]
         for event in events:
             event.update(reason="", text="", job=None)
+            event["position"].pop("sl", None)
+            event["position"].pop("tp", None)
     return dict(
         private=private, name=redact(game["name"]) if private else "虚拟交易复盘", pair=pair,
         pairs=game["pairs"], period=period, days=days, start=start, end=end,

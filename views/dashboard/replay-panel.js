@@ -41,7 +41,7 @@ export class ReplayPanel {
           <div class="replay-timeline-top"><h3>决定与操作</h3>
             <select class="replay-event-filter" aria-label="记录筛选"><option value="all">全部记录</option>
               <option value="trade">成交</option><option value="review">看盘与观望</option><option value="plan">策略调整</option>
-              <option value="failure">失败记录</option></select></div>
+              <option value="failure">失败记录</option><option value="ai">仅 AI</option><option value="system">仅系统</option></select></div>
           <ol class="replay-timeline"></ol></div>
         <aside class="replay-detail" aria-live="polite"></aside>
       </div>`;
@@ -65,6 +65,7 @@ export class ReplayPanel {
     this.chart?.remove();
     this.chart = null;
     this.data = null;
+    this.selected = null;
     this.root.querySelector(".replay-timeline").replaceChildren();
     this.root.querySelector(".replay-detail").replaceChildren();
     this.root.querySelector(".replay-stats").replaceChildren();
@@ -87,9 +88,12 @@ export class ReplayPanel {
         data.marks.length ? "" : "这个时段没有净值采样。新版本开始记录曲线。",
       ].filter(Boolean).join(" · ");
       this.stats();
+      this.selected = null;
       this.draw();
       this.timeline();
-      this.detail([...data.events].reverse().find(fill) || data.events.at(-1));
+      const latest = data.events.findLast(event => fill(event) && event.actor === "ai") || data.events.findLast(fill) || data.events.at(-1);
+      if (latest) this.select(latest, false);
+      else this.detail();
     } catch (error) {
       if (request !== this.version) return;
       this.data = null;
@@ -126,6 +130,9 @@ export class ReplayPanel {
   draw() {
     this.chart?.remove();
     this.chart = null;
+    this.priceSeries = null;
+    this.positionLine = null;
+    this.protectionLines = [];
     const root = this.root.querySelector(".replay-chart");
     root.replaceChildren();
     const data = this.data;
@@ -143,16 +150,16 @@ export class ReplayPanel {
       rightPriceScale: {borderColor: "#d3ded4"},
       timeScale: {timeVisible: true, secondsVisible: false, borderColor: "#d3ded4",
         tickMarkFormatter: time => new Date(time * 1000).toLocaleString("zh-CN", {timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false})},
-      localization: {timeFormatter: stamp}, crosshair: {mode: L.CrosshairMode.Normal},
+      localization: {timeFormatter: time => stamp(time)}, crosshair: {mode: L.CrosshairMode.Normal},
     });
     const currency = data.pair.endsWith("JPY") ? 3 : 5;
-    const candles = chart.addSeries(L.CandlestickSeries, {
+    const candles = this.priceSeries = chart.addSeries(L.CandlestickSeries, {
       upColor: "#168275", downColor: "#b34a65", borderVisible: false,
       wickUpColor: "#168275", wickDownColor: "#b34a65",
       priceFormat: {type: "price", precision: currency, minMove: 10 ** -currency},
     });
     candles.setData(data.candles);
-    const times = new Set(data.candles.map(b => b.time));
+    const times = this.candleTimes = new Set(data.candles.map(b => b.time));
     const trades = data.events.filter(e => fill(e) && times.has(e.bar));
     L.createSeriesMarkers(candles, trades.map(e => ({
       time: e.bar, position: "atPriceMiddle", price: e.price,
@@ -168,24 +175,54 @@ export class ReplayPanel {
       const previous = marks.get(time);
       if (metric !== "drawdown" || !previous || row.drawdown >= previous.drawdown) marks.set(time, row);
     }
-    const curve = chart.addSeries(L.AreaSeries, {
-      lineColor: metric === "drawdown" ? "#a44a65" : "#187d71", lineWidth: 2,
-      topColor: "#dceee5", bottomColor: "#f7faf6",
-      priceFormat: {type: "custom", minMove: 0.01, formatter: value => metric === "equity" ? "$" + number(value) : number(value) + "%"},
-    }, data.candles.length ? 1 : 0);
-    curve.setData([...marks].map(([time, row]) => ({time, value: metric === "drawdown" ? -row.drawdown : row[metric]})));
-    if (data.candles.length && marks.size) chart.panes()[1]?.setHeight(140);
+    if (marks.size) {
+      const curve = chart.addSeries(L.AreaSeries, {
+        lineColor: metric === "drawdown" ? "#a44a65" : "#187d71", lineWidth: 2,
+        topColor: "#dceee5", bottomColor: "#f7faf6",
+        priceFormat: {type: "custom", minMove: 0.01, formatter: value => metric === "equity" ? "$" + number(value) : number(value) + "%"},
+      }, data.candles.length ? 1 : 0);
+      curve.setData([...marks].map(([time, row]) => ({time, value: metric === "drawdown" ? -row.drawdown : row[metric]})));
+      if (data.candles.length) chart.panes()[1]?.setHeight(140);
+    }
     chart.subscribeClick(param => {
       if (typeof param.time !== "number") return;
       const at = trades.filter(e => e.bar === param.time);
       if (param.paneIndex === 1 || !at.length) this.markDetail(marks.get(param.time), param.time, seconds);
       else {
-        const price = candles.coordinateToPrice(param.point.y);
+        const price = param.point ? candles.coordinateToPrice(param.point.y) : at[0].price;
         const hit = at.reduce((a, b) => Math.abs(a.price - price) <= Math.abs(b.price - price) ? a : b);
         this.select(hit, false);
       }
     });
     chart.timeScale().fitContent();
+    this.highlight(this.selected);
+  }
+
+  highlight(event) {
+    if (!this.chart || !this.priceSeries) return;
+    if (this.positionLine) {
+      this.chart.removeSeries(this.positionLine);
+      this.positionLine = null;
+    }
+    for (const line of this.protectionLines) this.priceSeries.removePriceLine(line);
+    this.protectionLines = [];
+    if (!event?.position?.id || !this.candleTimes.has(event.bar)) return;
+    const L = window.LightweightCharts;
+    const related = this.data.events.filter(e => e.position?.id === event.position.id && fill(e) && this.candleTimes.has(e.bar));
+    const points = [...new Map(related.map(e => [e.bar, {time: e.bar, value: e.price}])).values()];
+    if (points.length > 1) {
+      this.positionLine = this.chart.addSeries(L.LineSeries, {
+        color: "#9a7337", lineWidth: 2, lineStyle: L.LineStyle.Dashed,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      });
+      this.positionLine.setData(points);
+    }
+    for (const [field, title, color] of [["sl", "当时止损", "#ae4761"], ["tp", "当时止盈", "#168275"]]) {
+      const value = Number(event.position[field]);
+      if (value > 0) this.protectionLines.push(this.priceSeries.createPriceLine({
+        price: value, title, color, lineWidth: 1, lineStyle: L.LineStyle.Dotted, axisLabelVisible: true,
+      }));
+    }
   }
 
   timeline() {
@@ -196,7 +233,8 @@ export class ReplayPanel {
     const events = [...this.data.events].reverse().filter(e =>
       filter === "all" || (filter === "trade" && fill(e)) ||
       (filter === "review" && ["review", "observe", "analysis"].includes(e.action)) ||
-      (filter === "plan" && e.action === "plan") ||
+      (filter === "plan" && e.action === "plan") || (filter === "ai" && e.actor === "ai") ||
+      (filter === "system" && e.actor === "system") ||
       (filter === "failure" && ["failed", "rejected"].includes(e.status)));
     for (const event of events) {
       const row = el("li");
@@ -214,6 +252,8 @@ export class ReplayPanel {
   }
 
   select(event, move = true) {
+    this.selected = event;
+    this.highlight(event);
     for (const button of this.root.querySelectorAll(".replay-row")) {
       button.setAttribute("aria-current", button.dataset.event === event.id ? "true" : "false");
     }
@@ -244,12 +284,17 @@ export class ReplayPanel {
       if (event.price != null) parts.push("成交价 " + event.price, "手续费 $" + number(event.fee));
       if (position.sl) parts.push("止损 " + position.sl);
       if (position.tp) parts.push("止盈 " + position.tp);
-      if (event.action === "close" && position.pnl != null) parts.push("平仓毛盈亏 $" + number(position.pnl));
+      if (event.action === "close" && position.pnl != null) {
+        const entry = this.data.events.find(e => e.action === "open" && fill(e) && e.position.id === position.id);
+        if (entry) parts.push("扣双边手续费 $" + number(Number(position.pnl) - event.fee - entry.fee));
+        else parts.push("平仓毛盈亏 $" + number(position.pnl));
+        if (position.created) parts.push("持仓 " + Math.max(0, Math.round((event.time - position.created) / 60)) + " 分钟");
+      }
       root.append(el("p", parts.join(" · ")));
     }
     if (event.reason && event.reason !== title(event)) root.append(el("p", event.reason, "replay-text"));
     if (event.text) root.append(el("p", event.text, "replay-text"));
-    const mark = this.data.marks.findLast(m => m.time < Math.floor(event.time / 60) * 60);
+    const mark = this.data.marks.findLast(m => m.time < Math.floor(event.time));
     if (mark) root.append(el("p", "此前最近采样 · 回撤 " + number(mark.drawdown) + "% · 净值 $" + number(mark.equity), "replay-muted"));
     const related = this.data.events.filter(e => e !== event && (
       (position?.id && e.position?.id === position.id) || (event.job && e.job === event.job) ||
@@ -269,22 +314,28 @@ export class ReplayPanel {
   }
 
   markDetail(mark, time, seconds) {
+    this.selected = null;
+    this.highlight();
     const root = this.root.querySelector(".replay-detail");
     root.replaceChildren(el("h3", "这一段账户变化"));
     if (!mark) { root.append(el("p", "这根 K 线范围内没有净值采样。")); return; }
     root.append(el("p", stamp(mark.time)), el("p", "净值 $" + number(mark.equity) + " · 回撤 " + number(mark.drawdown) + "%"));
     const marks = this.data.marks;
     const index = marks.indexOf(mark);
+    let first = time;
+    let last = time + seconds;
     if (mark.drawdown > 0) {
       const high = marks.slice(0, index).findLast(m => m.drawdown <= 0);
       const recovery = marks.slice(index + 1).find(m => m.drawdown <= 0);
       const start = high?.time ?? marks[0].time;
       const end = recovery?.time ?? marks.at(-1).time;
+      first = start;
+      last = end + 1;
       const worst = Math.max(...marks.filter(m => m.time >= start && m.time <= end).map(m => m.drawdown));
       root.append(el("p", (high ? "起点 " : "可见起点 ") + stamp(start) + " · 最深回撤 " + number(worst) + "%"));
       root.append(el("p", (recovery ? "恢复于 " + stamp(end) : "可见范围内尚未恢复") + " · 可见时长 " + Math.round((end - start) / 60) + " 分钟"));
     }
-    const nearby = this.data.events.filter(e => e.time >= time && e.time < time + seconds);
+    const nearby = this.data.events.filter(e => e.time >= first && e.time < last);
     if (nearby.length) { root.append(el("h4", "此区间的决定与操作")); this.links(root, nearby.slice(0, 20)); }
   }
 }
