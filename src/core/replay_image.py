@@ -26,6 +26,8 @@ GRID = "#d8e5da"
 TEAL = "#167e73"
 ROSE = "#ae4761"
 GOLD = "#8a6027"
+BLUE = "#315da4"
+CURVES = {"equity", "return", "drawdown", "realized", "fees"}
 ZONE = ZoneInfo("Asia/Shanghai")
 
 
@@ -49,7 +51,7 @@ def series(data, kind):
     if kind in {"equity", "return", "drawdown"}:
         field = {"equity": "equity", "return": "return_rate", "drawdown": "drawdown"}[kind]
         return [(row["time"], -row[field] if kind == "drawdown" else row[field],
-                 ROSE if kind == "drawdown" else TEAL) for row in data["marks"]]
+                 {"equity": TEAL, "return": BLUE, "drawdown": ROSE}[kind]) for row in data["marks"]]
     if kind == "activity":
         buckets = defaultdict(lambda: [0, 0, 0])
         step = 3600 if data["days"] == 1 else 86400
@@ -87,15 +89,21 @@ def render_png(data, kind):
         return datetime.fromtimestamp(t, ZONE).strftime(fmt)
 
     pair = data["pair"]
+    points = series(data, kind) if kind != "candles" else []
+    bars = data["candles"] if kind == "candles" else []
+    start, end = data["start"], data["end"]
+    if points and kind in CURVES:
+        start, end = points[0][0], points[-1][0]
+    axis_start, axis_end = (start, end) if start < end else (start - 60, end + 60)
     label(38, 25, CHARTS[kind][0 if zh else 1], heading)
     scoped = kind in {"candles", "realized", "trades", "fees"}
-    subtitle = (pair + "   |   " if scoped else "") + time_label(data["start"], "%m-%d %H:%M")
-    subtitle += " - " + time_label(data["end"], "%m-%d %H:%M") + "   UTC+8"
+    subtitle = (pair + "   |   " if scoped else "") + time_label(start, "%m-%d %H:%M")
+    if end != start:
+        subtitle += " - " + time_label(end, "%m-%d %H:%M")
+    subtitle += "   UTC+8"
     label(40, 82, subtitle, body, MUTED)
     draw.line((40, 122, 1080, 122), fill=GRID, width=2)
 
-    points = series(data, kind) if kind != "candles" else []
-    bars = data["candles"] if kind == "candles" else []
     values = ([v for bar in bars for v in (bar["low"], bar["high"])] if bars else
               [sum(value) if kind == "activity" else value for _, value, _ in points])
     if not values:
@@ -103,13 +111,13 @@ def render_png(data, kind):
     else:
         left, top, right, bottom = 122, 159, 1074, 532
         lo, hi = min(values), max(values)
-        if kind in {"activity", "trades", "drawdown", "return", "realized", "fees"}:
+        if kind in {"activity", "trades", "drawdown", "realized", "fees"}:
             lo, hi = min(0, lo), max(0, hi)
         pad = (hi - lo) * .08 or max(abs(lo) * .005, .0001)
         lo, hi = lo - pad, hi + pad
 
         def x(t):
-            return left + (right - left) * (min(data["end"], max(t, data["start"])) - data["start"]) / (data["end"] - data["start"])
+            return left + (right - left) * (min(axis_end, max(t, axis_start)) - axis_start) / (axis_end - axis_start)
 
         def y(v):
             return bottom - (bottom - top) * (v - lo) / (hi - lo)
@@ -127,11 +135,13 @@ def render_png(data, kind):
             else:
                 tick = f"{value:,.2f}"
             label(left - 8, yy, tick, small, MUTED, "rm")
+        span = axis_end - axis_start
+        tick_format = "%H:%M:%S" if span < 240 else "%H:%M" if span < 86400 else "%m-%d %H:%M" if span < 172800 else "%m-%d"
         for i in range(5):
-            t = data["start"] + (data["end"] - data["start"]) * i / 4
+            t = axis_start + span * i / 4
             xx = x(t)
             draw.line((xx, top, xx, bottom), fill=GRID)
-            label(xx, bottom + 13, time_label(t, "%H:%M" if data["days"] == 1 else "%m-%d"), small, MUTED, "mt")
+            label(xx, bottom + 13, time_label(t, tick_format), small, MUTED, "mt")
 
         if bars:
             width = max(2, min(9, (right - left) / max(20, len(bars)) * .35))
@@ -167,16 +177,32 @@ def render_png(data, kind):
                     draw.rectangle((xx - width, min(y(0), y(value)), xx + width, max(y(0), y(value))), fill=color)
         else:
             coords = [(x(t), y(value)) for t, value, _ in points]
+            color = points[-1][2]
+            if kind in {"fees", "realized"}:
+                stepped = [coords[0]]
+                for (_, previous_y), (xx, yy) in zip(coords, coords[1:]):
+                    stepped.extend(((xx, previous_y), (xx, yy)))
+                coords = stepped
             if len(coords) > 1:
-                draw.line(coords, fill=points[-1][2], width=4)
+                baseline = y(0) if lo <= 0 <= hi else bottom
+                tint = Image.blend(Image.new("RGB", (1, 1), PAPER), Image.new("RGB", (1, 1), color), .14).getpixel((0, 0))
+                for (x1, y1), (x2, y2) in zip(coords, coords[1:]):
+                    draw.polygon([(x1, baseline), (x1, y1), (x2, y2), (x2, baseline)], fill=tint)
+                if lo <= 0 <= hi:
+                    draw.line((left, baseline, right, baseline), fill=MUTED)
+                draw.line(coords, fill=color, width=4)
             xx, yy = coords[-1]
-            draw.ellipse((xx - 5, yy - 5, xx + 5, yy + 5), fill=points[-1][2])
+            draw.line((left, yy, right, yy), fill=color)
+            draw.ellipse((xx - 6, yy - 6, xx + 6, yy + 6), fill=color, outline=PAPER, width=2)
             last = points[-1][1]
             unit = "%" if kind in {"return", "drawdown"} else " USD"
-            info = ("最新采样 " if zh else "Latest ") + f"{last:,.2f}" + unit
+            label(1080, 30, f"{last:,.2f}" + unit, heading, color, "rt")
+            caption = "最新采样" if zh else "Latest sample"
+            if kind in {"fees", "realized"}:
+                caption = "区间累计" if zh else "Period total"
             if kind == "drawdown":
-                info += ("   ·   最深 " if zh else "   |   Worst ") + f"{min(values):.2f}%"
-            label(1080, 109, info, small, MUTED, "rs")
+                caption += ("   ·   区间最深 " if zh else "   |   Worst ") + f"{min(values):.2f}%"
+            label(1080, 88, caption, small, MUTED, "rt")
 
     footer = ("虚拟交易 · 仅供复盘" if zh else "SIMULATED TRADES   /   REVIEW ONLY")
     legends = {
