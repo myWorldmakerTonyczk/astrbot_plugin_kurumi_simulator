@@ -482,13 +482,13 @@
                 <label class="check"><input name="multiplayer" type="checkbox">开启多人模式</label>
                 <label>主用户<select name="main_user_id"></select></label>
                 <p class="caption">单人模式只显示主用户的设置和实例。切换模式会保留所有用户与交易记录。聊天工具按用户归属隔离。</p>
-                <button type="submit">保存用户模式</button>
               </form>
               <div id="multi-user-controls" hidden>
                 <div class="form-grid"><label>用户昵称（选填）<input id="new-user-nickname" maxlength="40" placeholder="留空递增命名"></label>
                   <button type="button" id="generate-user-id">生成虚拟用户ID</button></div>
               </div>
               <div id="managed-users"></div>
+              <div class="connection-actions"><button type="submit" form="workspace-mode-settings">保存设置</button><span id="workspace-save-status" role="status"></span></div>
             </section>
           </div>
           <div data-settings-page="api" hidden>

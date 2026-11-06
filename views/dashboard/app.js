@@ -15,7 +15,7 @@ const tradingNotices = new TradingNotices(bridge);
 const diaryPanel = new DiaryPanel(bridge);
 const replayPanel = new ReplayPanel(document.getElementById("replay"), (game, options) =>
   bridge.apiGet("review", {game, ...options}));
-const userManager = new UserManager(post, load, (user) => {
+const userManager = new UserManager(post, (user) => {
   rotatingUser = user;
   $("rotate-user-name").textContent = `为「${user.name}」生成新ID？`;
   $("rotate-user-dialog").showModal();
@@ -192,6 +192,9 @@ function selectInstance(instance) {
 function workspaceUsers() {
   const users = state?.workspace?.users || [];
   const mode = state?.workspace?.mode || {multiplayer: false, main_user_id: users[0]?.id || ""};
+  if (modeSettingsDirty) {
+    return {users, multiplayer: modeForm.elements.multiplayer.checked, main_user_id: modeForm.elements.main_user_id.value};
+  }
   return {users, ...mode};
 }
 function renderCatalog() {
@@ -942,8 +945,14 @@ let rotatingUser = null;
 let deletingUser = null;
 let modeSettingsDirty = false;
 const modeForm = $("workspace-mode-settings");
-modeForm.addEventListener("change", () => { modeSettingsDirty = true; });
+modeForm.addEventListener("change", () => {
+  modeSettingsDirty = true;
+  $("workspace-save-status").textContent = "有未保存的设置";
+  renderManagedUsers();
+  renderCatalog();
+});
 submit("workspace-mode-settings", async fields => {
+  await userManager.save();
   await post("command", {
     action: "workspace_mode",
     multiplayer: modeForm.elements.multiplayer.checked,
@@ -951,6 +960,7 @@ submit("workspace-mode-settings", async fields => {
   });
   modeSettingsDirty = false;
   await load();
+  $("workspace-save-status").textContent = "已保存";
 });
 function renderManagedUsers() {
   const {users, multiplayer, main_user_id} = workspaceUsers();
@@ -1026,6 +1036,7 @@ $("confirm-delete-user").onclick=async()=>{
   if(!deletingUser)return;
   try {
     await post("command",{action:"delete_user",user_id:deletingUser.id});
+    userManager.drafts.delete(deletingUser.id);
     deletingUser=null;$("delete-user-dialog").close();
     document.activeElement?.blur();await load();
   }catch{}

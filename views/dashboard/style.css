@@ -261,6 +261,7 @@ select {
 .check {
   display: flex;
   align-items: center;
+  gap: .55rem;
 }
 .check input {
   width: auto;
@@ -1765,3 +1766,35 @@ details.managed-user { display:block; padding:18px; border:1px solid #e5d4e2; bo
 #workspace-mode-settings select { max-width: 25rem; }
 #workspace-mode-settings p { margin: 0; }
 #workspace-mode-settings button { justify-self: start; }
+
+/* Keep native checkbox semantics while presenting one switch style. */
+input[type="checkbox"] {
+  appearance: none;
+  width: 2.75rem;
+  height: 1.65rem;
+  flex: 0 0 auto;
+  display: inline-grid;
+  align-items: center;
+  vertical-align: middle;
+  margin: 0;
+  padding: 0 .2rem;
+  border: 0;
+  border-radius: 999px;
+  background: #786e7c;
+  cursor: pointer;
+}
+input[type="checkbox"]::before {
+  content: "";
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: white;
+}
+input[type="checkbox"]:checked { background: #52734c; }
+input[type="checkbox"]:checked::before { justify-self: end; }
+input[type="checkbox"]:focus-visible { outline: 2px solid #74588f; outline-offset: 3px; }
+input[type="checkbox"]:disabled { opacity: .55; cursor: default; }
+@media (forced-colors: active) {
+  input[type="checkbox"] { appearance: auto; }
+  input[type="checkbox"]::before { content: none; }
+}

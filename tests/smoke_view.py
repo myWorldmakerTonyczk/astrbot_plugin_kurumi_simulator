@@ -351,7 +351,7 @@ with sync_playwright() as p:
     assert manager.locator('input[name=nickname]').locator('..').locator('.required-indicator').is_visible()
     manager.locator('input[name=nickname]').fill("改过的名字")
     assert manager.locator('input[name=nickname]').locator('..').locator('.required-indicator').is_hidden()
-    manager.get_by_role("button",name="保存用户设置").click()
+    page.get_by_role("button", name="保存设置", exact=True).click()
     page.wait_for_function("document.querySelector('#managed-users strong').textContent==='改过的名字'")
     assert page.locator("#managed-users code").first.inner_text() != old_id
 
@@ -609,7 +609,9 @@ with sync_playwright() as p:
     page.locator('[data-settings-tab="users"]').click()
     mode = page.locator("#workspace-mode-settings")
     mode.locator('[name="multiplayer"]').uncheck()
-    mode.get_by_role("button", name="保存用户模式").click()
+    assert page.locator("#multi-user-controls").is_hidden()
+    assert page.evaluate("window.fixture.workspace.mode.multiplayer") is True
+    page.get_by_role("button", name="保存设置", exact=True).click()
     page.wait_for_function("window.fixture.workspace.mode.multiplayer === false")
     assert page.locator("#multi-user-controls").is_hidden()
     assert "主用户" in page.locator("#managed-users").inner_text()
@@ -620,7 +622,7 @@ with sync_playwright() as p:
     page.get_by_role("button", name="设置", exact=True).click()
     page.locator('[data-settings-tab="users"]').click()
     mode.locator('[name="multiplayer"]').check()
-    mode.get_by_role("button", name="保存用户模式").click()
+    page.get_by_role("button", name="保存设置", exact=True).click()
     page.wait_for_function("window.fixture.workspace.mode.multiplayer === true")
     page.locator("#back-to-catalog").click()
     assert page.locator("#instance-directory .instance-card").count() == 3
