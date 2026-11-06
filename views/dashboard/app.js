@@ -1,3 +1,4 @@
+import { renderNotebookText } from "./notebook.js";
 import { refreshRequired } from "./required-fields.js";
 import { UserManager } from "./user-manager.js";
 import { ModelSettings } from "./model-settings.js";
@@ -408,7 +409,7 @@ function render() {
   options($("trade-pair"), g.pairs, $("trade-pair").value || g.pairs[0]);
   journal($("logs"), selected.logs);
   journal($("recent"), selected.logs.slice(0, 4));
-  $("plan").textContent = g.plan || "尚无计划";
+  renderNotebookText($("plan"), g.plan || "尚无计划");
   $("notes").textContent = g.notes || "尚无经验笔记";
   const bind = $("binding");
   if (!bind.contains(document.activeElement)) {

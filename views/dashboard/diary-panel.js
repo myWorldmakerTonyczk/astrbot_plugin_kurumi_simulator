@@ -1,9 +1,12 @@
+import { renderNotebookText } from "./notebook.js";
 // Per-instance diary reader and global daily-writing controls.
 export class DiaryPanel {
   constructor(bridge) {
     this.bridge = bridge;
     this.gid = "";
     this.before = "";
+    this.entries = [];
+    this.selectedDay = "";
     this.dirty = false;
     this.generation = 0;
     this.loading = false;
@@ -40,6 +43,8 @@ export class DiaryPanel {
     if (gid !== this.gid) {
       this.gid = gid;
       this.before = "";
+    this.entries = [];
+    this.selectedDay = "";
       this.generation++;
       this.loading = false;
       document.getElementById("diary-entries").replaceChildren();
@@ -58,27 +63,56 @@ export class DiaryPanel {
       const result = await this.bridge.apiGet("diaries", {game: gid, before: older ? this.before : "", limit: 10});
       if (generation !== this.generation) return;
       const entries = result.entries || [];
-      const container = document.getElementById("diary-entries");
-      if (!older) container.replaceChildren();
-      const states = {pending: "排队中", running: "正在写", failed: "等待自动重试", success: "已写好", skipped: "未达到当前阈值"};
-      for (const entry of entries) {
-        const article = document.createElement("details");
-        article.className = "diary-entry";
-        article.open = !older && container.children.length === 0;
-        const heading = document.createElement("summary");
-        heading.textContent = `${entry.day} · ${states[entry.status] || entry.status}`;
-        const text = document.createElement("pre");
-        text.textContent = entry.content || entry.error || "任务已保存，后台会逐篇生成。";
-        article.append(heading, text);
-        container.append(article);
-      }
+      this.entries = older ? [...this.entries, ...entries] : entries;
+      if (!this.entries.some(entry => entry.day === this.selectedDay)) this.selectedDay = this.entries[0]?.day || "";
+      this.renderEntries();
       this.before = result.next_before || "";
       document.getElementById("diary-older").hidden = entries.length < 10;
-      status.textContent = entries.length ? "每个实例独立保存；失败会自动重试，可点刷新查看进度。" : "暂无日记。达到条件的日期会在固定时间排队生成。";
+      status.textContent = this.entries.length ? "选择日期阅读。生成失败后会自动重试。" : "暂无日记。达到条件的日期会在固定时间排队生成。";
     } catch (error) {
       if (generation === this.generation) status.textContent = error.message || "日记读取失败";
     } finally {
       if (generation === this.generation) this.loading = false;
     }
   }
+  renderEntries() {
+    const container = document.getElementById("diary-entries");
+    container.replaceChildren();
+    if (!this.entries.length) return;
+    const states = {pending: "排队中", running: "正在写", failed: "待重试", success: "已写好", skipped: "未达到阈值"};
+    const directory = document.createElement("nav");
+    directory.setAttribute("aria-label", "日记日期");
+    const reader = document.createElement("article");
+    reader.className = "notebook-reader";
+    const title = document.createElement("h4");
+    const body = document.createElement("div");
+    body.className = "notebook-prose";
+    const select = entry => {
+      this.selectedDay = entry.day;
+      for (const button of directory.querySelectorAll("button")) {
+        button.setAttribute("aria-pressed", String(button.dataset.day === entry.day));
+      }
+      title.textContent = entry.day + " · " + (states[entry.status] || entry.status);
+      renderNotebookText(body, entry.content || entry.error || "后台会按排队顺序生成这篇日记。");
+    };
+    let month = "";
+    for (const entry of this.entries) {
+      if (entry.day.slice(0, 7) !== month) {
+        month = entry.day.slice(0, 7);
+        const label = document.createElement("small");
+        label.textContent = month;
+        directory.append(label);
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.day = entry.day;
+      button.textContent = entry.day.slice(5) + " " + (states[entry.status] || entry.status);
+      button.onclick = () => select(entry);
+      directory.append(button);
+    }
+    reader.append(title, body);
+    container.append(directory, reader);
+    select(this.entries.find(entry => entry.day === this.selectedDay));
+  }
+
 }

@@ -1718,3 +1718,25 @@ details.managed-user { display:block; padding:18px; border:1px solid #e5d4e2; bo
 @media(max-width:640px){.notice-switches{grid-template-columns:1fr}.managed-user>summary{flex-wrap:wrap}}
 
 .required-indicator{color:#d72f4c;font-size:.9em;margin-left:4px;font-weight:600}.required-indicator[hidden]{display:none!important}
+
+.notebook-layout { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.2fr); gap: 16px; align-items: start; }
+.notebook-plan { border-top: 3px solid #925f83; }
+.notebook-diary { border-top: 3px solid #5b8277; }
+.notebook-prose { line-height: 1.75; overflow-wrap: anywhere; color: var(--ink); }
+.notebook-prose > section { padding: 10px 14px; margin-top: 10px; border-left: 3px solid #d3b5cb; background: #faf6fa; }
+.notebook-prose h4, .notebook-prose p { margin: 0 0 .55em; }
+.notebook-prose ul { padding-inline-start: 1.35em; }
+.notebook-prose p:last-child { margin-bottom: 0; }
+#diary-entries { display: grid; grid-template-columns: minmax(6.8rem, auto) minmax(0, 1fr); gap: 15px; align-items: start; }
+#diary-entries nav { display: grid; gap: 4px; }
+#diary-entries nav small { margin: 8px 0 2px; color: var(--muted); }
+#diary-entries nav button { text-align: left; font-size: .82rem; padding: 7px; }
+#diary-entries nav button[aria-pressed="true"] { background: #e7f0eb; border-color: #85aa9b; }
+.notebook-reader { padding: 0 0 0 15px; border-left: 1px solid #dfd5e2; }
+.notebook-reader > h4 { margin: 6px 0 12px; color: #41685e; }
+@media (max-width: 1050px) { .notebook-layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 550px) {
+  #diary-entries { grid-template-columns: minmax(0, 1fr); }
+  #diary-entries nav { display: flex; flex-wrap: wrap; align-items: center; }
+  .notebook-reader { border-left: 0; border-top: 1px solid #dfd5e2; padding: 8px 0 0; }
+}

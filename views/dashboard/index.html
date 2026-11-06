@@ -430,14 +430,14 @@
               <p>行情会变，交易的理由不会丢。计划与经验跨会话保存。</p>
             </div>
           </div>
-          <div class="two-col">
-            <section class="panel">
+          <div class="notebook-layout">
+            <section class="panel notebook-plan">
               <h3>当前交易计划</h3>
               <p>开仓理由始终跟随持仓。这里保存她对下一步的安排。</p>
-              <pre id="plan">尚无计划</pre>
+              <div id="plan" class="notebook-prose">尚无计划</div>
             </section>
-            <section class="panel">
-              <h3>她的经验笔记</h3>
+            <section class="panel notebook-diary">
+              <h3>交易日记</h3>
               <p>是她自己的总结，不代表已经验证的盈利规律。</p>
               <details><summary>旧版经验笔记</summary><pre id="notes">尚无经验笔记</pre></details>
               <div class="connection-actions"><button type="button" id="diary-refresh">刷新日记</button>
@@ -451,13 +451,6 @@
               预留：未来单独维护跨实例的通用经验；当前实例的计划、日志与经验仍各自保存。
             </p>
             <button type="button" disabled>总经验（暂未启用）</button>
-          </section>
-          <section class="panel">
-            <h3>复盘资料</h3>
-            <p>
-              在聊天里让她调用 kurumi_forex 的 state、logs
-              工具，就能读取账户与日志讨论。独立复盘报告与检索筛选在后续里程碑完成。
-            </p>
           </section>
         </section>
         <section data-page="setup" hidden>
