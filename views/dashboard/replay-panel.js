@@ -54,6 +54,7 @@ export class ReplayPanel {
         <nav class="replay-pairs" aria-label="复盘货币对" hidden>
           <details open><summary>货币对 <span class="replay-pair-count"></span><span class="replay-pair-selection"></span></summary>
             <div class="replay-pair-list"></div>
+            <div class="replay-pair-mix" hidden></div>
           </details>
         </nav>
         <div class="replay-main"><div class="replay-stats"></div>
@@ -69,7 +70,7 @@ export class ReplayPanel {
               <option value="trade">成交</option><option value="review">看盘与观望</option><option value="plan">策略调整</option>
               <option value="failure">失败记录</option><option value="ai">仅 AI</option><option value="system">仅系统</option></select></div>
           <ol class="replay-timeline"></ol></div>
-        <aside class="replay-detail" aria-live="polite"></aside>
+        <aside class="replay-side"><section class="replay-fill-summary" hidden></section><div class="replay-detail" aria-live="polite"></div></aside>
       </div>`;
     this.form = root.querySelector("form");
     this.pairNav = root.querySelector(".replay-pairs");
@@ -191,6 +192,7 @@ export class ReplayPanel {
     this.updateFloatingChart();
     this.root.querySelector(".replay-chart").classList.remove("is-drawn");
     this.data = null;
+    this.drawSideSummary();
     this.drawActivity();
     this.selected = null;
     this.relatedFrom = null;
@@ -223,6 +225,7 @@ export class ReplayPanel {
       this.draw();
       this.updateFloatingChart();
       this.drawPerformance();
+      this.drawSideSummary();
       this.drawActivity();
       this.timeline();
       const latest = data.events.findLast(event => fill(event) && event.actor === "ai") || data.events.findLast(fill) || data.events.at(-1);
@@ -232,6 +235,7 @@ export class ReplayPanel {
       if (request !== this.version) return;
       this.data = null;
       this.clearPerformance();
+      this.drawSideSummary();
       this.drawActivity();
       cancelAnimationFrame(this.rangeFrame);
       this.clearTradeLabels?.();
@@ -398,6 +402,41 @@ export class ReplayPanel {
         if (mark) this.markDetail(mark, time, 60);
       });
     }
+  }
+
+  drawSideSummary() {
+    const left = this.root.querySelector(".replay-pair-mix");
+    const right = this.root.querySelector(".replay-fill-summary");
+    left.replaceChildren();
+    right.replaceChildren();
+    left.hidden = right.hidden = !this.data;
+    if (!this.data) return;
+    const fills = this.data.events.filter(event => event.pair === this.data.pair && fill(event));
+    const opens = fills.filter(event => event.action === "open");
+    const closes = fills.filter(event => event.action === "close");
+    const longs = opens.filter(event => event.position?.side === "buy").length;
+    const mix = el("div", null, "replay-mix-track");
+    if (opens.length) {
+      const long = el("span");
+      long.style.width = (100 * longs / opens.length) + "%";
+      mix.append(long);
+    }
+    left.append(el("h3", "开仓方向"), opens.length ? mix : el("small", "时段内无开仓"));
+    if (opens.length) left.append(el("small", "做多 " + longs + " / 做空 " + (opens.length - longs)));
+    const sources = [["ai", "AI"], ["human", "人类"], ["system", "系统"]];
+    right.append(el("h3", this.data.pair + " 成交构成"));
+    for (const [actor, name] of sources) {
+      const count = fills.filter(event => event.actor === actor).length;
+      const row = el("div", null, "replay-fill-source");
+      const meter = el("meter");
+      meter.min = 0;
+      meter.max = Math.max(1, fills.length);
+      meter.value = count;
+      meter.setAttribute("aria-label", name + "成交占比");
+      row.append(el("span", name), meter, el("strong", String(count)));
+      right.append(row);
+    }
+    right.append(el("small", "开仓 " + opens.length + " 笔 · 平仓 " + closes.length + " 笔"));
   }
 
   drawActivity() {
