@@ -33,16 +33,23 @@ class NotificationService:
             "SELECT COALESCE(MAX(seq),0) FROM logs WHERE game=?", (gid,)
         ).fetchone()[0]
 
+    def enabled(self, preferences, kind):
+        if kind == "diary":
+            diary = self.plugin.diary.config()
+            return preferences["enabled"] and diary["enabled"] and diary["send_to_owner"]
+        return preferences["enabled"] and preferences.get(kind, False)
+
     def queue(self, game, key, kind, body, now):
         preferences = config(game)
-        if not preferences["enabled"] or not preferences.get(kind, False):
+        if not self.enabled(preferences, kind):
             return
         due = delivery_time(now, preferences, kind)
         self.db.execute(
             """INSERT INTO notice_outbox(game,key,kind,body,due,state) VALUES(?,?,?,?,?,'pending')
           ON CONFLICT(game,key) DO UPDATE SET body=excluded.body,
             due=CASE WHEN notice_outbox.state IN ('pending','failed') THEN notice_outbox.due ELSE excluded.due END,
-            state='pending',error=''""",
+            state='pending',error=''
+          WHERE excluded.kind != 'diary' OR notice_outbox.state IN ('pending','failed')""",
             (game["id"], key, kind, redact(body)[:4000], due),
         )
 
@@ -125,7 +132,7 @@ class NotificationService:
             except ValueError:
                 continue
             preferences = config(game)
-            if not preferences["enabled"] or not preferences.get(row["kind"], False):
+            if not self.enabled(preferences, row["kind"]):
                 self.db.execute(
                     "UPDATE notice_outbox SET state='cancelled' WHERE game=? AND key=?",
                     (gid, key),
@@ -148,7 +155,7 @@ class NotificationService:
                 )
                 continue
             umo = game.get("reference_umo") or game.get("umo", "")
-            if not self.plugin.identity.can_reference(game.get("owner_id"), umo):
+            if (row["kind"] == "diary" and ":FriendMessage:" not in umo) or not self.plugin.identity.can_reference(game.get("owner_id"), umo):
                 self.db.execute(
                     "UPDATE notice_outbox SET due=?,state='failed',error=? WHERE game=? AND key=?",
                     (now + 300, "请先通过交易工具关联已验证的私聊会话", gid, key),
@@ -170,7 +177,7 @@ class NotificationService:
                     ),
                 )
                 try:
-                    if self.plugin.diary.config()["enabled"]:
+                    if row["kind"] != "diary" and self.plugin.diary.config()["enabled"]:
                         self.plugin.diary.store.capture(
                             self.plugin, event, "assistant", row["body"], now
                         )

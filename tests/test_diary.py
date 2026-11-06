@@ -4,13 +4,14 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 from zoneinfo import ZoneInfo
 
 from src.core.engine import Engine
 from src.users.identity import Identity
 from src.diary.settings import settings, bounds, due_before
 from src.diary.scheduler import DiaryService
+from src.notifications.service import NotificationService
 
 
 def stamp(text):
@@ -86,6 +87,34 @@ class DiaryTests(unittest.IsolatedAsyncioTestCase):
         await self.diary.process_one(self.now + 86400)
         self.writer.assert_awaited_once()
         self.assertEqual(self.diary.store.list(self.game["id"])[0]["status"], "success")
+
+    async def test_completed_diary_waits_for_quiet_hours_and_sends_once(self):
+        notices = self.plugin.notifications = NotificationService(self.plugin)
+        notices.send = AsyncMock()
+        self.logs(3)
+        self.diary.scan(self.now)
+        with patch("src.diary.scheduler.time.time", return_value=self.now):
+            await self.diary.process_one(self.now)
+        await notices.flush(self.now)
+        notices.send.assert_not_awaited()
+        morning = stamp("2026-11-05T07:00:00")
+        await notices.flush(morning)
+        notices.send.assert_awaited_once()
+        umo, body = notices.send.await_args.args
+        self.assertEqual(umo, self.game["reference_umo"])
+        self.assertIn(self.writer.return_value, body)
+        self.assertFalse(self.diary.store.has_chat(self.game["id"], self.now, morning + 1))
+        await notices.flush(morning + 10)
+        notices.send.assert_awaited_once()
+
+    async def test_disabled_diary_delivery_does_not_queue(self):
+        self.plugin.notifications = NotificationService(self.plugin)
+        self.config["send_to_owner"] = False
+        self.logs(3)
+        self.diary.scan(self.now)
+        await self.diary.process_one(self.now)
+        self.assertEqual(self.diary.store.list(self.game["id"])[0]["status"], "success")
+        self.assertIsNone(self.engine.db.execute("SELECT 1 FROM notice_outbox").fetchone())
 
     async def test_chat_only_does_not_bypass_low_trade_threshold(self):
         self.chat()

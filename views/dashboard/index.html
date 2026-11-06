@@ -628,6 +628,8 @@
                   <label>前一天交易日志数量大于<input name="min_logs" type="number" min="0" max="10000" step="1" value="2" required>
                     <span class="caption">默认2，即至少3条才写；包括失败操作与人类操作，不把创建实例、后台分析摘要和设置变更计入。</span></label>
                   <label class="check"><input name="chat_only" type="checkbox">无交易但有聊天时也写日记</label>
+                  <label class="check"><input name="send_to_owner" type="checkbox" checked>写完后主动发给主人</label>
+                  <p class="caption">发到实例已授权的主人私聊，遵守主动通知总开关与免打扰时间。</p>
                   <p class="caption">此开关只用于交易日志为0的日期；1～阈值条交易日志的日期仍不生成。</p>
                   <label>首次提供的近期聊天条数<input name="history_count" type="number" min="0" max="100" step="1" value="40" required></label>
                   <p class="caption">仅归档功能启用后已授权参考会话的聊天，缺失旧聊天不编造。失败自动重试，重启与次日检查会补写遗漏日期；补写不读取未来资料。日记不会发往QQ。</p>

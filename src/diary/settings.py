@@ -10,6 +10,7 @@ DEFAULTS = dict(
     timezone="Asia/Shanghai",
     min_logs=2,
     chat_only=False,
+    send_to_owner=True,
     history_count=40,
 )
 
@@ -18,7 +19,7 @@ def settings(values=None):
     result = {**DEFAULTS, **(values or {})}
     if set(result) != set(DEFAULTS):
         raise ValueError("日记设置包含未知字段")
-    if any(type(result[key]) is not bool for key in ("enabled", "chat_only")):
+    if any(type(result[key]) is not bool for key in ("enabled", "chat_only", "send_to_owner")):
         raise ValueError("日记开关格式无效")
     for key, maximum in (("min_logs", 10000), ("history_count", 100)):
         if type(result[key]) is not int or not 0 <= result[key] <= maximum:

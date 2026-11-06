@@ -21,6 +21,7 @@ export class DiaryPanel {
         await bridge.apiPost("diary-settings", {
           enabled: form.elements.enabled.checked,
           chat_only: form.elements.chat_only.checked,
+          send_to_owner: form.elements.send_to_owner.checked,
           time: form.elements.time.value,
           timezone: form.elements.timezone.value,
           min_logs: Number(form.elements.min_logs.value),
@@ -37,7 +38,7 @@ export class DiaryPanel {
   render(config, gid) {
     const form = document.getElementById("diary-settings");
     if (config && !this.dirty && !form.contains(document.activeElement)) {
-      for (const key of ["enabled", "chat_only"]) form.elements[key].checked = config[key];
+      for (const key of ["enabled", "chat_only", "send_to_owner"]) form.elements[key].checked = config[key] ?? true;
       for (const key of ["time", "timezone", "min_logs", "history_count"]) form.elements[key].value = config[key];
     }
     if (gid !== this.gid) {

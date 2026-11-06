@@ -131,10 +131,10 @@ class DiaryStore:
 
     def finish(self, gid, day, content, now):
         self.engine.get(gid)  # Never recreate deleted instances.
-        self.db.execute(
+        return self.db.execute(
             "UPDATE diaries SET status='success',content=?,error='',updated=? WHERE game=? AND day=? AND status='running'",
             (redact(content), now, gid, day),
-        )
+        ).rowcount
 
     def records(self, plugin, job, kind, before=0, limit=30):
         gid, cutoff = job["game"], job["end"]

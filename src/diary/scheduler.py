@@ -87,7 +87,17 @@ class DiaryService:
                 else:
                     write = self.writer
                 content = await write(self.plugin, job, config)
-                self.store.finish(job["game"], job["day"], content, time.time())
+                completed = time.time()
+                with self.plugin.engine.transaction():
+                    saved = self.store.finish(job["game"], job["day"], content, completed)
+                    notifications = getattr(self.plugin, "notifications", None)
+                    if saved and notifications:
+                        game = self.plugin.engine.get(job["game"])
+                        if game.get("owner_id"):
+                            notifications.queue(
+                                game, f"diary:{job['day']}", "diary",
+                                f"【{game['name']}】{job['day']} 交易日记\n\n{content}", completed,
+                            )
             except asyncio.CancelledError:
                 self.store.db.execute(
                     "UPDATE diaries SET status='pending',retry_at=0 WHERE game=? AND day=?",
