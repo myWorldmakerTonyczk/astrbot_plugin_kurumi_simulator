@@ -30,11 +30,15 @@ def build(plugin):
                 try:
                     if chat_owner(plugin, event) != owner:
                         raise ValueError("会话绑定已变化，请重新领取")
-                    lines = ["模拟交易登录面板", url, f"账号：{username}"]
+                    lines = ["模拟交易登录面板", url]
+                    if username:
+                        lines.append(f"账号：{username}")
                     if password:
                         lines += [f"首次密码：{password}", "请妥善保管此密码。"]
+                    elif username:
+                        lines += ["请使用已保存的面板密码。忘记密码可请管理员重置。"]
                     else:
-                        lines += ["请使用首次领取时的密码。忘记密码可请管理员重置。"]
+                        lines += ["当前只提供登录网址。已有账号可尝试登录，需要首次凭据时请稍后再领取。"]
                     await event.send(MessageChain().message("\n".join(lines)))
                 except Exception:
                     # The first password is unrecoverable if the adapter rejects the send.

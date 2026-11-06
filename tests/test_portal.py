@@ -1,3 +1,4 @@
+import socket
 import time
 import unittest
 from types import SimpleNamespace
@@ -126,6 +127,48 @@ class PortalTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(game["plan"], "本人的私人策略")
         self.assertFalse(game["trade"])
         self.assertNotIn("reference_umo", game)
+
+    async def test_listener_handover_and_old_cleanup(self):
+        old = self.portal
+        new = Portal(old.plugin)
+        self.addAsyncCleanup(old.stop)
+        self.addAsyncCleanup(new.stop)
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        config = dict(old.config, port=port)
+        await old.configure(config)
+        original = old.runner
+        await new.configure(config)
+        self.assertIsNone(old.runner)
+        self.assertIsNot(new.runner, original)
+        await old.stop()
+        self.assertEqual(new.runner.addresses[0][1], port)
+
+    async def test_listener_handover_failure_restores_previous_listener(self):
+        old = self.portal
+        new = Portal(old.plugin)
+        self.addAsyncCleanup(old.stop)
+        self.addAsyncCleanup(new.stop)
+        with socket.socket() as blocked, socket.socket() as probe:
+            blocked.bind(("127.0.0.1", 0))
+            blocked.listen()
+            probe.bind(("127.0.0.1", 0))
+            original_port = probe.getsockname()[1]
+            probe.close()
+            config = dict(old.config, port=original_port)
+            await old.configure(config)
+            with self.assertRaisesRegex(ValueError, "无法监听"):
+                await new.configure(dict(config, port=blocked.getsockname()[1]))
+        self.assertIsNone(new.runner)
+        self.assertEqual(old.runner.addresses[0][1], original_port)
+
+    async def test_login_url_without_listener_does_not_issue_credentials(self):
+        owner = self.first["owner_id"]
+        self.assertEqual(await self.portal.account_link(owner), (ORIGIN + "/", "", ""))
+        self.assertEqual(self.portal.accounts.username(owner), "")
+        with self.assertRaisesRegex(ValueError, "监听未启动"):
+            self.portal.link(owner, self.first["id"], "read")
 
     async def test_account_login_and_trade_require_owner_and_explicit_grant(self):
         owner = self.first["owner_id"]

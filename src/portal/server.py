@@ -84,7 +84,6 @@ class Portal(Operations):
         self.accounts = PortalAccounts(self.access)
         self.config = dict(DEFAULTS)
         self.runner = None
-        self.lock = asyncio.Lock()
         self.review_slots = asyncio.Semaphore(4)
         self.error = ""
 
@@ -99,9 +98,15 @@ class Portal(Operations):
             raise ValueError("独立面板已启用，但当前插件的监听未启动" + detail + "。请管理员检查面板状态。")
 
     async def account_link(self, owner):
-        self.require_listener()
+        if not self.config["enabled"] or not self.config["origin"]:
+            raise ValueError("管理员尚未启用独立面板")
+        if not self.accounts.has_games(owner):
+            raise ValueError("当前用户还没有交易实例")
+        url = self.config["origin"] + "/"
+        if self.runner is None:
+            return url, "", ""
         username, password = await self.accounts.issue(owner)
-        return self.config["origin"] + "/", username, password
+        return url, username, password
 
     def link(self, owner, gid, mode):
         self.require_listener()
@@ -158,31 +163,56 @@ class Portal(Operations):
             raise
         return runner
 
+    @staticmethod
+    def listener_state():
+        # The event loop survives a plugin reload, including module replacement.
+        loop = asyncio.get_running_loop()
+        state = getattr(loop, "_kurumi_portal_listener", None)
+        if state is None:
+            state = {"lock": asyncio.Lock(), "owner": None}
+            loop._kurumi_portal_listener = state
+        return state
+
     async def configure(self, config):
-        async with self.lock:
+        state = self.listener_state()
+        async with state["lock"]:
+            previous = state["owner"]
             old = self.config
-            same = self.runner and (config["bind"], config["port"]) == (old["bind"], old["port"])
+            same = self.runner is not None and (config["bind"], config["port"]) == (old["bind"], old["port"])
             if not config["enabled"] or not same:
-                await self.stop()
+                if previous is not None:
+                    await previous.close_listener()
+                state["owner"] = None
                 if config["enabled"]:
+                    self.config = config
                     try:
                         self.runner = await self.open_listener(config)
                     except OSError:
-                        if old["enabled"]:
+                        self.config = old
+                        if previous is not None:
                             try:
-                                self.runner = await self.open_listener(old)
+                                previous.runner = await previous.open_listener(previous.config)
+                                state["owner"] = previous
                             except OSError:
                                 self.error = "原面板端口也无法监听"
                         raise ValueError("无法监听面板端口，请检查端口是否被占用") from None
+                    state["owner"] = self
             if not config["enabled"] or old["origin"] and config["origin"] != old["origin"]:
                 self.access.revoke_all()
             self.config = config
             self.error = ""
 
-    async def stop(self):
-        if self.runner:
+    async def close_listener(self):
+        if self.runner is not None:
             runner, self.runner = self.runner, None
             await runner.cleanup()
+
+    async def stop(self):
+        state = self.listener_state()
+        async with state["lock"]:
+            if state["owner"] is self:
+                state["owner"] = None
+            await self.close_listener()
 
     async def health(self, request):
         return web.json_response(
