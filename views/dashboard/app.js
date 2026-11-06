@@ -12,7 +12,7 @@ import { TradingNotices } from "./notifications.js";
 import { instanceGroups, renderInstanceDirectory } from "./instance-catalog.js";
 import { createPortalBridge } from "./portal-bridge.js";
 const remote = document.body.hasAttribute("data-remote-workspace");
-const bridge = remote ? createPortalBridge() : window.AstrBotPluginView;
+const bridge = remote ? createPortalBridge(() => gid) : window.AstrBotPluginView;
 const tradingNotices = new TradingNotices(bridge);
 const diaryPanel = new DiaryPanel(bridge);
 const replayPanel = new ReplayPanel(document.getElementById("replay"), (game, options) =>

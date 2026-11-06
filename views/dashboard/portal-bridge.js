@@ -1,4 +1,4 @@
-export function createPortalBridge() {
+export function createPortalBridge(getGame) {
   async function request(path, params = {}, body) {
     const query = new URLSearchParams(params);
     const response = await fetch("/api/" + path + (query.size ? "?" + query : ""), {
@@ -17,6 +17,7 @@ export function createPortalBridge() {
     ready: () => request("session"),
     apiGet(route, params) {
       if (route === "alerts") return Promise.resolve({events: []});
+      if (route === "history") params = {...params, game: getGame()};
       return request(route === "state" ? "workspace" : route, params);
     },
     apiPost(route, body) {
