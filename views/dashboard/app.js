@@ -22,11 +22,12 @@ const userManager = new UserManager(post, (user) => {
   $("delete-user-description").textContent=`删除「${user.name}」及其 ${user.instances?.length||0} 个交易实例？`;
   $("delete-user-dialog").showModal();tradingNotices.setScope("");
 });
-const modelSettings = new ModelSettings(post, load);
+const modelSettings = new ModelSettings(post);
 const instanceNotices = new InstanceNotices(post, load);
 const portalSettings = new PortalSettings(post, load);
 let settingsPage = "users";
 function showSettings(page) {
+  if (page !== settingsPage && !confirmLeavingApiSettings()) return;
   settingsPage = page;
   for (const section of document.querySelectorAll("[data-settings-page]")) section.hidden=section.dataset.settingsPage!==page;
   for (const button of document.querySelectorAll("[data-settings-tab],[data-settings-anchor]")) {
@@ -174,9 +175,9 @@ function returnToCatalog() {
 for (const button of document.querySelectorAll("[data-workspace]"))
   button.onclick = () =>
     button.dataset.workspace === "instances"
-      ? workspace("instances")
+      ? confirmLeavingApiSettings() && workspace("instances")
       : workspace("settings");
-$("back-to-catalog").onclick = returnToCatalog;
+$("back-to-catalog").onclick = () => { if (confirmLeavingApiSettings()) returnToCatalog(); };
 for (const button of document.querySelectorAll("[data-settings-anchor]"))
   button.onclick = () => showSettings(button.dataset.settingsAnchor);
 function selectInstance(instance) {
@@ -824,21 +825,85 @@ $("test-connection").onclick = async () => {
     $("test-connection").disabled = false;
   }
 };
-$("decision-settings").addEventListener("input",()=>{decisionSettingsDirty=true;});
-submit("decision-settings",async(p)=>{
-  const form=$("decision-settings"),values={cooldown:Math.round(Number(p.cooldown)*60),hourly_limit:Number(p.hourly_limit)};
-  for(const key of ["stop_loss","take_profit","liquidation","margin_call","end"])values[key]=form.elements[key].checked;
-  await post("decision-settings",values);decisionSettingsDirty=false;await load();
-  $("decision-settings-status").textContent="看盘限频和风险触发设置已保存。";
+$("decision-settings").addEventListener("input", () => { decisionSettingsDirty = true; });
+
+function apiSettingsDirty() {
+  return modelSettings.dirty || decisionSettingsDirty || connectionDirty;
+}
+function confirmLeavingApiSettings() {
+  return workspaceMode !== "settings" || settingsPage !== "api" || !apiSettingsDirty()
+    || window.confirm("API 与行情设置有未保存的修改。确定切换页面？返回后仍可继续编辑。");
+}
+window.addEventListener("beforeunload", event => {
+  if (!apiSettingsDirty()) return;
+  event.preventDefault();
+  event.returnValue = "";
 });
-submit("connection", async (p) => {
-  await post("settings", p);
-  connectionDirty = false;
-  $("connection").elements.market_key.value = "";
-  $("connection-status").textContent =
-    "设置已保存。连通性测试可以随时检查当前服务器的获取结果。";
-  await load();
-});
+
+const apiSaveStatus = $("api-save-status");
+const apiSettingsPage = $("save-api-settings").closest("[data-settings-page]");
+for (const form of [modelSettings.form, $("decision-settings"), $("connection")]) {
+  form.addEventListener("input", () => { apiSaveStatus.textContent = "有未保存的修改"; });
+  form.onsubmit = event => {
+    event.preventDefault();
+    $("save-api-settings").click();
+  };
+}
+$("reset-market-url").addEventListener("click", () => { apiSaveStatus.textContent = "有未保存的修改"; });
+
+$("save-api-settings").onclick = async event => {
+  const button = event.currentTarget;
+  if (button.disabled || posting) return;
+  if (!apiSettingsDirty()) {
+    apiSaveStatus.textContent = "没有需要保存的修改。";
+    return;
+  }
+  const decision = $("decision-settings");
+  const connection = $("connection");
+  const changedForms = [
+    modelSettings.dirty && modelSettings.form,
+    decisionSettingsDirty && decision,
+    connectionDirty && connection,
+  ].filter(Boolean);
+  if (changedForms.some(form => !form.reportValidity())) return;
+
+  let section = "模型接口";
+  const saved = [];
+  button.disabled = true;
+  apiSettingsPage.inert = true;
+  apiSaveStatus.textContent = "正在保存…";
+  try {
+    const model = modelSettings.dirty ? modelSettings.values() : null;
+    if (model) {
+      await modelSettings.save(model);
+      saved.push(section);
+    }
+    section = "看盘触发";
+    if (decisionSettingsDirty) {
+      const fields = decision.elements;
+      const values = {cooldown: Math.round(Number(fields.cooldown.value) * 60), hourly_limit: Number(fields.hourly_limit.value)};
+      for (const key of ["stop_loss", "take_profit", "liquidation", "margin_call", "end"]) values[key] = fields[key].checked;
+      await post("decision-settings", values);
+      decisionSettingsDirty = false;
+      saved.push(section);
+    }
+    section = "行情连接";
+    if (connectionDirty) {
+      await post("settings", Object.fromEntries(new FormData(connection)));
+      connectionDirty = false;
+      connection.elements.market_key.value = "";
+      saved.push(section);
+    }
+    apiSaveStatus.textContent = "设置已保存。";
+  } catch (error) {
+    const prefix = saved.length ? "已保存 " + saved.join("、") + "。 " : "";
+    apiSaveStatus.textContent = prefix + section + "保存失败，未保存的修改已保留。 " + error.message;
+  } finally {
+    apiSettingsPage.inert = false;
+    button.disabled = false;
+    if (saved.length) await load();
+  }
+};
 sourceFields();
 submit("binding", async (p) => {
   if (!gid) throw Error("请先创建游戏");

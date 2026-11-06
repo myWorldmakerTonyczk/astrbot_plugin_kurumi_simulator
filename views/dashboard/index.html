@@ -505,8 +505,7 @@
                 </div>
                 <label class="check"><input name="debug_prompt" type="checkbox">在控制台输出完整LLM提示词（调试）</label>
                 <p class="caption">默认关闭；开启后输出看盘和日记的系统提示词、上下文与任务正文，插件不截断。不输出接口密钥和请求头。</p>
-                <button type="submit">保存模型接口</button>
-              </form><p id="llm-settings-status" role="status"></p>
+              </form>
             </section>
               <section class="panel">
               <h3>看盘频率与风险事件</h3>
@@ -521,8 +520,7 @@
                 <label class="check"><input name="margin_call" type="checkbox" checked>保证金不足</label>
                 <label class="check"><input name="end" type="checkbox" checked>本局结束</label>
                 <p class="caption">事件任务同样排队限频；本局结束后只读复盘，不再交易。用户主动通知仍遵守免打扰。</p>
-                <button type="submit">保存看盘触发设置</button>
-              </form><p id="decision-settings-status" role="status"></p>
+              </form>
             </section>
             <section class="panel connection-panel">
                 <h3>行情连接</h3>
@@ -593,7 +591,7 @@
                       测试连通性</button
                     ><button type="button" id="reset-market-url">
                       恢复默认地址</button
-                    ><button type="submit" class="primary">保存行情设置</button>
+                    >
                   </div>
                 </form>
                 <p class="caption">
@@ -605,6 +603,10 @@
                   class="connection-result"
                 ></div>
               </section>
+            <div class="connection-actions">
+              <button type="button" class="primary" id="save-api-settings">保存 API 与行情设置</button>
+              <p id="api-save-status" role="status" class="caption"></p>
+            </div>
           </div>
           <div data-settings-page="portal" hidden>
             <section class="card">

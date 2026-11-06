@@ -1,17 +1,30 @@
 export class ModelSettings {
-  constructor(post,reload){
-    this.dirty=false;
-    this.form=document.getElementById("llm-settings");
-    this.form.addEventListener("input",()=>{this.dirty=true;this.fields();});
-    this.form.onsubmit=async(event)=>{
-      event.preventDefault();const form=this.form,status=document.getElementById("llm-settings-status");
-      try {
-        const body={debug_prompt:form.elements.debug_prompt.checked,mode:form.elements.mode.value,provider_id:form.elements.provider_id.value,
-          api_base:form.elements.api_base.value,model:form.elements.model.value,api_key:form.elements.api_key.value,timeout:Number(form.elements.timeout.value)};
-        if(form.elements.headers.value.trim())body.headers=JSON.parse(form.elements.headers.value);
-        await post("llm-settings",body);this.dirty=false;form.elements.api_key.value="";form.elements.headers.value="";document.activeElement?.blur();await reload();status.textContent="模型调用设置已保存，供后台看盘与日记使用。";
-      }catch(error){status.textContent=error.message||"保存失败";}
+  constructor(post) {
+    this.post = post;
+    this.dirty = false;
+    this.form = document.getElementById("llm-settings");
+    this.form.addEventListener("input", () => { this.dirty = true; this.fields(); });
+  }
+
+  values() {
+    const fields = this.form.elements;
+    const body = {
+      debug_prompt: fields.debug_prompt.checked, mode: fields.mode.value,
+      provider_id: fields.provider_id.value, api_base: fields.api_base.value,
+      model: fields.model.value, api_key: fields.api_key.value, timeout: Number(fields.timeout.value),
     };
+    if (fields.headers.value.trim()) {
+      try { body.headers = JSON.parse(fields.headers.value); }
+      catch { throw Error("模型接口的自定义请求头须为有效 JSON。"); }
+    }
+    return body;
+  }
+
+  async save(values) {
+    await this.post("llm-settings", values);
+    this.dirty = false;
+    this.form.elements.api_key.value = "";
+    this.form.elements.headers.value = "";
   }
   fields(){const custom=this.form.elements.mode.value==="custom";
     this.form.elements.provider_id.required=!custom;
