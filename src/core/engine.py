@@ -678,7 +678,7 @@ class Engine:
             self.save(game)
             sample(self.db, game, force=original_positions != dump(game["positions"]) or original_status != game["status"])
 
-    def snapshot(self, gid):
+    def snapshot(self, gid, log_limit=50):
         game = self.get(gid)
         try:
             value = self.valuation(game)
@@ -689,7 +689,7 @@ class Engine:
             game=game,
             valuation=value,
             market_error=error,
-            logs=self.logs(gid),
+            logs=self.logs(gid, limit=log_limit) if log_limit else [],
             quotes=self.quotes,
             pairs=PAIRS,
         )

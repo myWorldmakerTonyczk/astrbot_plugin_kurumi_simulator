@@ -7,7 +7,7 @@ import unittest
 from types import SimpleNamespace
 
 from src.core.engine import Engine
-from src.tools._shared import console, read_logs
+from src.tools._shared import console
 from src.users.identity import Identity
 
 
@@ -100,20 +100,22 @@ class ProtectionTests(unittest.TestCase):
 
     def test_journal_filters_and_paginates(self):
         self.e.action(self.id, "deposit", dict(amount=2000))
-        result = json.loads(
-            asyncio.run(read_logs(self.plugin, self.event, "EUR/USD", 0, 20))
-        )
-        result = result["result"]
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["action"], "open")
-        all_logs = json.loads(asyncio.run(read_logs(self.plugin, self.event)))["result"]
-        self.assertEqual(all_logs[0]["action"], "deposit")
-        older = json.loads(
-            asyncio.run(read_logs(self.plugin, self.event, "", all_logs[0]["id"], 1))
-        )
-        older = older["result"]
-        self.assertEqual(len(older), 1)
-        self.assertLess(older[0]["id"], all_logs[0]["id"])
+        def query(**options):
+            reply = asyncio.run(console(self.plugin, self.event, "logs", json.dumps(options)))
+            return json.loads(reply)["result"]
+
+        result = query(pair="EUR/USD")["logs"]
+        self.assertEqual([row["action"] for row in result], ["open"])
+        self.e.action(self.id, "observe", dict(reason="test"))
+        first = query(page_size=1, pages=2, filter="operations")
+        self.assertEqual([row["action"] for row in first["logs"]], ["deposit", "open"])
+        self.assertIsNone(first["next_page"])
+        latest = query(page_size=1)
+        self.assertEqual(latest["logs"][0]["action"], "observe")
+        self.e.action(self.id, "observe", dict(reason="new event"))
+        older = query(page=latest["next_page"], page_size=1, before=latest["before"])
+        self.assertEqual(older["logs"][0]["action"], "deposit")
+        self.assertEqual(query(sort="oldest")["logs"][0]["action"], "create")
 
     def test_other_session_has_no_access(self):
         other = SimpleNamespace(
@@ -122,7 +124,7 @@ class ProtectionTests(unittest.TestCase):
             platform_meta=SimpleNamespace(name="aiocqhttp"),
         )
         self.assertIn("绑定", asyncio.run(console(self.plugin, other, "state", "{}")))
-        self.assertFalse(json.loads(asyncio.run(read_logs(self.plugin, other)))["ok"])
+        self.assertFalse(json.loads(asyncio.run(console(self.plugin, other, "logs", "{}")))["ok"])
 
     def test_tool_rejects_funding(self):
         result = asyncio.run(

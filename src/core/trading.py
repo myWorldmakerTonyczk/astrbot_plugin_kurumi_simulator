@@ -2,6 +2,7 @@
 
 import asyncio
 from .engine import PAIRS
+from .journal import compact_log, journal
 
 RECORD_VOICE = (
     "用户没有额外要求时，报告、看盘摘要、交易理由、日志和计划默认沿用原人设的语气，"
@@ -16,8 +17,11 @@ def lock_for(plugin, gid):
     return plugin.instance_locks.setdefault(gid, asyncio.Lock())
 
 
-def public_snapshot(plugin, gid):
-    result = plugin.engine.snapshot(gid)
+def public_snapshot(plugin, gid, log_limit=30):
+    if type(log_limit) is not int or not 0 <= log_limit <= 50:
+        raise ValueError("近期日志条数须在0到50之间")
+    result = plugin.engine.snapshot(gid, log_limit)
+    result["logs"] = [compact_log(entry) for entry in result["logs"]]
     result["game"] = dict(result["game"])
     result["game"].pop("user_binding", None)
     from ..users.policy import effective
@@ -29,22 +33,10 @@ def public_snapshot(plugin, gid):
 
 async def execute(plugin, gid, action, body, *, already_locked=False):
     if action == "state":
-        return public_snapshot(plugin, gid)
+        return public_snapshot(plugin, gid, body.get("log_limit", 30))
     plugin.engine.get(gid)
     if action == "logs":
-        before = body.get("before", 0)
-        limit = body.get("limit", 20)
-        pair = body.get("pair", "")
-        if (
-            type(before) is not int
-            or before < 0
-            or type(limit) is not int
-            or not 1 <= limit <= 50
-            or pair
-            and pair not in PAIRS
-        ):
-            raise ValueError("日志分页参数无效")
-        return plugin.engine.logs(gid, before or 2**63 - 1, limit, pair)
+        return journal(plugin.engine, gid, **body)
     if action == "history":
         pair = body.get("pair", "")
         period = body.get("period", "1h")

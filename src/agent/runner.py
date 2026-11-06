@@ -13,6 +13,7 @@ from ..diary.store import redact
 from .llm import ensure_available, tool_loop
 from ..users.policy import change_notices
 from ..notifications.settings import DEFAULTS as NOTICE_DEFAULTS
+from ..core.journal import JOURNAL_FIELDS, LOG_LIMIT
 from ..core.trading import RECORD_VOICE, WRITE_ACTIONS, execute, lock_for, public_snapshot
 
 RULES = """你在炒外汇。保持原有人格，自行探索交易策略，可以观望。
@@ -127,11 +128,11 @@ def make_tools(plugin, gid, expected, called, read_only=False):
         except (ValueError, TypeError) as exc:
             return dump(dict(ok=False, error=str(exc)))
 
-    async def state(_event):
-        return await run("state", {})
+    async def state(_event, log_limit=30):
+        return await run("state", dict(log_limit=log_limit))
 
-    async def logs(_event, pair="", before=0, limit=20):
-        return await run("logs", dict(pair=pair, before=before, limit=limit))
+    async def logs(_event, **options):
+        return await run("logs", options)
 
     async def history(_event, pair, period="1h", limit=80):
         return await run("history", dict(pair=pair, period=period, limit=limit))
@@ -213,18 +214,14 @@ def make_tools(plugin, gid, expected, called, read_only=False):
         tool(
             "kurumi_watch_market",
             "查看本实例账户、持仓、行情、规则、计划和近期日志",
-            {},
+            dict(log_limit=LOG_LIMIT),
             [],
             state,
         ),
         tool(
             "kurumi_read_journal",
             "分页查本实例历史交易与操作理由",
-            dict(
-                pair=string("可选货币对"),
-                before=dict(type="integer"),
-                limit=dict(type="integer", minimum=1, maximum=50),
-            ),
+            JOURNAL_FIELDS,
             [],
             logs,
         ),

@@ -54,16 +54,6 @@ async def select_instance(plugin, event, instance_id, user_id=""):
         return dump(dict(ok=False, error=str(exc)))
 
 
-async def read_logs(plugin, event, pair="", before=0, limit=20, user_id=""):
-    return await console(
-        plugin,
-        event,
-        "logs",
-        dump(dict(pair=pair, before=before, limit=limit)),
-        user_id,
-    )
-
-
 async def console(plugin, event, action, parameters, user_id=""):
     try:
         game = bound_game(plugin, event, user_id)
