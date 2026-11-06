@@ -13,6 +13,10 @@ class KurumiSimulator(KurumiMixin, Star):
         super().__init__(context, config)
         register_tools(self)
 
+    async def terminate(self):
+        # AstrBot checks the entry class dictionary before invoking this hook.
+        await super().terminate()
+
     @filter.on_llm_request()
     async def trading_context(self, event, request):
         self.capture_diary_chat(event, "user", event.get_message_str())
