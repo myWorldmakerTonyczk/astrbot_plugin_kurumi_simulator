@@ -42,6 +42,7 @@ export function renderInstanceDirectory(
   onSelect,
   onDelete = () => {},
   onCreate = () => {},
+  mainUserId = "",
 ) {
   const make = (tag, text, cls) => {
     const n = document.createElement(tag);
@@ -63,7 +64,7 @@ export function renderInstanceDirectory(
       avatar = make("span", Array.from(group.name)[0], "user-avatar"),
       copy = make("span", undefined, "user-group-name");
     copy.append(
-      make("strong", group.name),
+      make("strong", group.name + (group.id === mainUserId ? " · 主用户" : "")),
       make("small", `${group.instances.length} 个交易实例`),
     );
     if (group.publicId)

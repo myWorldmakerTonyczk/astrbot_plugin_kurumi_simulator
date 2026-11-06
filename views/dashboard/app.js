@@ -189,12 +189,20 @@ function selectInstance(instance) {
   workspace("instances");
   load();
 }
+function workspaceUsers() {
+  const users = state?.workspace?.users || [];
+  const mode = state?.workspace?.mode || {multiplayer: false, main_user_id: users[0]?.id || ""};
+  return {users, ...mode};
+}
 function renderCatalog() {
-  const groups = instanceGroups(state.games, state.workspace?.users || []),
-    hasInstances = state.games.length > 0;
+  const {users, multiplayer, main_user_id} = workspaceUsers();
+  const games = multiplayer ? state.games : state.games.filter(game => main_user_id && game.owner_id === main_user_id);
+  const visibleUsers = multiplayer ? users : users.filter(user => user.id === main_user_id);
+  const groups = instanceGroups(games, visibleUsers);
+  const hasInstances = games.length > 0;
   $("empty").hidden = hasInstances;
   $("catalog-heading").hidden = !hasInstances;
-  $("instance-directory").hidden = !hasInstances && !state.workspace?.users?.length;
+  $("instance-directory").hidden = !hasInstances && !visibleUsers.length;
   renderInstanceDirectory(
     $("instance-directory"),
     groups,
@@ -202,6 +210,7 @@ function renderCatalog() {
     selectInstance,
     openDeleteInstance,
     openCreateInstance,
+    main_user_id,
   );
   const owner = groups.find((g) => g.instances.some((i) => i.id === gid));
   const instance = owner?.instances.find((i) => i.id === gid);
@@ -226,7 +235,8 @@ async function load() {
       return load();
     }
     state = nextState;
-    if (state.missing_instance) {
+    const mode = workspaceUsers();
+    if (state.missing_instance || (gid && !mode.multiplayer && state.current?.game.owner_id !== mode.main_user_id)) {
       gid = "";
       state.current = null;
       workspace("instances");
@@ -930,8 +940,26 @@ $("confirm-delete-instance").onclick = async () => {
 };
 let rotatingUser = null;
 let deletingUser = null;
+let modeSettingsDirty = false;
+const modeForm = $("workspace-mode-settings");
+modeForm.addEventListener("change", () => { modeSettingsDirty = true; });
+submit("workspace-mode-settings", async fields => {
+  await post("command", {
+    action: "workspace_mode",
+    multiplayer: modeForm.elements.multiplayer.checked,
+    main_user_id: fields.main_user_id || "",
+  });
+  modeSettingsDirty = false;
+  await load();
+});
 function renderManagedUsers() {
-  userManager.render(state.workspace?.users || []);
+  const {users, multiplayer, main_user_id} = workspaceUsers();
+  if (!modeSettingsDirty) {
+    modeForm.elements.multiplayer.checked = multiplayer;
+    options(modeForm.elements.main_user_id, users.length ? users : [{id: "", name: "新建实例后自动设为主用户"}], main_user_id);
+  }
+  $("multi-user-controls").hidden = !multiplayer;
+  userManager.render(multiplayer ? users : users.filter(user => user.id === main_user_id), main_user_id, multiplayer);
 }
 $("generate-user-id").onclick = async () => {
   try {
@@ -957,7 +985,9 @@ $("confirm-rotate-user").onclick = async () => {
 };
 let createOwnerBinding = null;
 function openCreateInstance(group = null) {
-  const user = group && state.workspace.users.find(item => String(item.id) === group.id);
+  const {users, multiplayer, main_user_id} = workspaceUsers();
+  const ownerId = group?.id || (!multiplayer && main_user_id);
+  const user = users.find(item => String(item.id) === ownerId);
   const binding = user?.bindings?.find(item => item.type === "umo") || user?.bindings?.find(item => item.type === "qq");
   createOwnerBinding = user ? (binding ? {type: binding.type, values: [binding.value]} : {type: "random", values: [user.public_id]}) : null;
   $("create-user-fields").hidden = !!user;

@@ -207,11 +207,20 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
         except (ValueError, TypeError) as exc:
             return error_response(str(exc), status_code=400)
 
+    def workspace_mode(self, users):
+        saved = self.settings().get("workspace_mode", {})
+        ids = {user["id"] for user in users}
+        main = saved.get("main_user_id")
+        if main not in ids:
+            main = next((user["id"] for user in users if user["instances"]), users[0]["id"] if users else "")
+        return dict(multiplayer=saved.get("multiplayer", False), main_user_id=main)
+
     async def web_state(self):
         if not self.authorized():
             return error_response("需要 AstrBot 登录", status_code=401)
         gid = request.query.get("game", "")
         games = self.engine.games()
+        users = self.engine.users()
         exists = any(game["id"] == gid for game in games)
         providers = [
             dict(id=p.meta().id, name=p.meta().id)
@@ -226,7 +235,8 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                 games=games,
                 missing_instance=bool(gid) and not exists,
                 workspace=dict(
-                    users=self.engine.users(),
+                    users=users,
+                    mode=self.workspace_mode(users),
                     ownership_enforced=True,
                     dashboard_admin=True,
                 ),
@@ -293,6 +303,21 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                 if options["auto"]:
                     llm.ensure_available(self, options)
                 return json_response(self.engine.create(options))
+            if body.get("action") == "workspace_mode":
+                multiplayer = body.get("multiplayer")
+                main = body.get("main_user_id", "")
+                with self.engine.transaction():
+                    users = self.engine.users()
+                    if type(multiplayer) is not bool or (
+                        main not in {user["id"] for user in users} and (main or users)
+                    ):
+                        raise ValueError("请选择有效的主用户")
+                    saved = self.settings()
+                    saved["workspace_mode"] = dict(multiplayer=multiplayer, main_user_id=main)
+                    self.engine.db.execute(
+                        "INSERT OR REPLACE INTO settings VALUES(1,?)", (dump(saved),)
+                    )
+                return json_response({"ok": True})
             if body.get("action") == "create_user":
                 return json_response(
                     self.engine.create_virtual_user(body.get("nickname", ""))

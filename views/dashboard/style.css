@@ -1760,3 +1760,8 @@ details.managed-user { display:block; padding:18px; border:1px solid #e5d4e2; bo
   .journal-day > h4 { position: static; }
   .journal-event { grid-template-columns: minmax(0, 1fr); gap: 4px; }
 }
+
+#workspace-mode-settings { display: grid; gap: 10px; margin: 14px 0 18px; padding: 14px; border: 1px solid var(--line); border-radius: 9px; background: #faf6fa; }
+#workspace-mode-settings select { max-width: 25rem; }
+#workspace-mode-settings p { margin: 0; }
+#workspace-mode-settings button { justify-self: start; }

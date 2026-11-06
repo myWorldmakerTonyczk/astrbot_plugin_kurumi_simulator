@@ -51,6 +51,7 @@ fixture = dict(
     llm_settings=llm_public(None),
     instance_access=dict(allow_custom_interval=False,effective_interval=3600,allow_panel_notice=True,allow_tool_notice=True,notifications=notice_defaults()),
     games=engine.games(),
+    workspace=dict(users=[], mode=dict(multiplayer=True, main_user_id="")),
     current=engine.snapshot(game["id"]),
     pairs=list(PAIRS),
     market_identity="referencefeed",
@@ -100,6 +101,7 @@ js = """window.fixture=FIXTURE;window.AstrBotPluginView={
  if(endpoint==='decision'){window.fixture.decision={state:'pending',next_allowed:Date.now()/1000,last_summary:'',error:''};return {ok:true,message:'看盘任务已排队'};}
  if(endpoint==='decision-settings'){window.fixture.decision_limits=body;return {ok:true};}
  if(endpoint==='llm-settings'){window.fixture.llm_settings={...body,key_configured:!!body.api_key,headers_configured:!!body.headers};delete window.fixture.llm_settings.api_key;delete window.fixture.llm_settings.headers;return {ok:true};}
+ if(endpoint==='command'&&body.action==='workspace_mode'){window.fixture.workspace.mode={multiplayer:body.multiplayer,main_user_id:body.main_user_id};return {ok:true};}
  if(endpoint==='command'&&body.action==='delete_user'){window.fixture.workspace.users=window.fixture.workspace.users.filter(u=>u.id!==body.user_id);window.fixture.games=window.fixture.games.filter(g=>g.owner_id!==body.user_id);return {ok:true};}
  if(endpoint==='command'&&body.action==='update_user'){const u=window.fixture.workspace.users.find(u=>u.id===body.user_id);u.name=body.nickname;u.policy=body.policy;u.notifications=body.notifications;return {ok:true};}
  if(endpoint==='command'&&body.action==='notifications'){window.fixture.instance_access.notifications=body.settings;return {ok:true};}
@@ -590,7 +592,7 @@ with sync_playwright() as p:
     page.set_viewport_size({"width": 1440, "height": 1000})
     page.evaluate("""(()=>{
       const base=structuredClone(window.fixture.current), first=base.game.id;
-      window.fixture.workspace={users:[{id:'alice',name:'用户甲'},{id:'bob',name:'用户乙'}]};
+      window.fixture.workspace={mode:{multiplayer:true,main_user_id:'alice'},users:[{id:'alice',name:'用户甲'},{id:'bob',name:'用户乙'}]};
       window.instanceSnapshots={};
       const scopes=[[first,'alice','甲的第一盘','第一盘独立经验'],['alice-two','alice','甲的第二盘','第二盘独立经验'],['bob-one','bob','乙的第一盘','乙的独立经验']];
       window.fixture.games=[];
@@ -602,6 +604,25 @@ with sync_playwright() as p:
     assert page.locator(".workspace>aside").is_hidden()
     assert page.locator("#instance-nav").is_hidden()
     assert page.locator(".user-instance-group").count() == 2
+    assert page.locator("#instance-directory .instance-card").count() == 3
+    page.get_by_role("button", name="设置", exact=True).click()
+    page.locator('[data-settings-tab="users"]').click()
+    mode = page.locator("#workspace-mode-settings")
+    mode.locator('[name="multiplayer"]').uncheck()
+    mode.get_by_role("button", name="保存用户模式").click()
+    page.wait_for_function("window.fixture.workspace.mode.multiplayer === false")
+    assert page.locator("#multi-user-controls").is_hidden()
+    assert "主用户" in page.locator("#managed-users").inner_text()
+    assert page.locator("#managed-users .managed-user").count() == 1
+    page.locator("#back-to-catalog").click()
+    assert page.locator("#instance-directory .instance-card").count() == 2
+    assert page.locator('.instance-card[data-instance-id="bob-one"]').count() == 0
+    page.get_by_role("button", name="设置", exact=True).click()
+    page.locator('[data-settings-tab="users"]').click()
+    mode.locator('[name="multiplayer"]').check()
+    mode.get_by_role("button", name="保存用户模式").click()
+    page.wait_for_function("window.fixture.workspace.mode.multiplayer === true")
+    page.locator("#back-to-catalog").click()
     assert page.locator("#instance-directory .instance-card").count() == 3
     alice = page.locator(".user-instance-group[data-owner-id=alice]")
     assert alice.locator(".instance-card").count() == 2
@@ -696,7 +717,7 @@ with sync_playwright() as p:
     assert page.locator('.instance-card[data-instance-id="bob-one"]').count() == 0
     page.evaluate(
         "window.fixture.games=[];window.fixture.current=null;window.instanceSnapshots={};"
-        "window.fixture.workspace={users:[{id:'managed-user',name:'测试用户',public_id:'krm_11111111111111111111'}]}"
+        "window.fixture.workspace={mode:{multiplayer:true,main_user_id:'managed-user'},users:[{id:'managed-user',name:'测试用户',public_id:'krm_11111111111111111111'}]}"
     )
     page.locator("#refresh").click()
     page.wait_for_selector("#empty:not([hidden])")

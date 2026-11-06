@@ -4,19 +4,19 @@ const check=(name,text,value)=>{const label=make("label",null,"check"),input=mak
 
 export class UserManager {
   constructor(post,reload,rotate,remove){this.post=post;this.reload=reload;this.rotate=rotate;this.remove=remove;this.signature="";}
-  render(users=[]) {
-    const target=document.getElementById("managed-users"),signature=JSON.stringify(users);
+  render(users=[], mainUserId="", multiplayer=true) {
+    const target=document.getElementById("managed-users"),signature=JSON.stringify([users, mainUserId, multiplayer]);
     if((target.contains(document.activeElement)&&document.activeElement.matches("input,textarea,select"))||signature===this.signature)return;
     this.signature=signature;
     const old=new Map([...target.querySelectorAll("details[data-user]")].map(el=>[el.dataset.user,el.open]));
     target.replaceChildren();
     for(const user of users) {
       const policy={allow_custom_interval:false,max_instances:0,interval:3600,allow_panel_notice:true,allow_tool_notice:true,...user.policy};
-      const row=make("details",null,"managed-user");row.dataset.user=user.id;row.open=old.has(user.id)?old.get(user.id):false;
-      const summary=make("summary");summary.append(make("strong",user.name),make("span",`${user.instances?.length||0} 个实例`,"caption"));row.append(summary);
+      const row=make("details",null,"managed-user");row.dataset.user=user.id;row.open=old.has(user.id)?old.get(user.id):!multiplayer;
+      const summary=make("summary");summary.append(make("strong",user.name),make("span",user.id === mainUserId ? "主用户" : "其他用户","caption"),make("span",`${user.instances?.length||0} 个实例`,"caption"));row.append(summary);
       const identity=make("div",null,"user-identity"),refresh=make("button","刷新ID");refresh.type="button";refresh.onclick=()=>this.rotate(user);
       const remove=make("button","删除用户","danger-button");remove.type="button";remove.onclick=()=>this.remove(user);
-      identity.append(make("code",user.public_id||"尚未生成ID"),refresh,remove);row.append(identity);
+      if (multiplayer) identity.append(make("code",user.public_id||"尚未生成ID"),refresh); identity.append(remove);row.append(identity);
       const aliases=make("details",null,"user-bindings");aliases.append(make("summary",`绑定方式与所属实例（${user.bindings?.length||0} 个QQ / UMO绑定）`));
       for(const alias of user.bindings||[]) {
         const line=make("p");line.append(make("span",alias.type==="qq"?"QQ号：":"会话UMO："),make("code",alias.value));aliases.append(line);
@@ -30,7 +30,7 @@ export class UserManager {
       row.append(aliases);
       const form=make("form"),nameLabel=make("label","用户昵称"),name=make("input");name.name="nickname";name.value=user.name;name.required=true;name.maxLength=40;nameLabel.append(name);form.append(nameLabel);
       const permissions=make("details");permissions.append(make("summary","用户与实例权限"));
-      const maxLabel=make("label","每位用户的实例数量上限（0表示不限）"),max=make("input");
+      const maxLabel=make("label","实例数量上限（0表示不限）"),max=make("input");
       max.type="number";max.min="0";max.max="1000";max.step="1";max.required=true;max.value=policy.max_instances;
       maxLabel.append(max);permissions.append(maxLabel);
       permissions.append(check("allow_custom_interval","允许在实例面板自行修改看盘间隔",policy.allow_custom_interval));
@@ -55,6 +55,6 @@ export class UserManager {
       };
       row.append(form);target.append(row);
     }
-    if(!users.length)target.append(make("p","还没有虚拟用户。生成一个ID，或在新建实例时绑定QQ / UMO。","caption"));
+    if(!users.length)target.append(make("p","还没有用户。新建交易实例时绑定私聊 UMO 即可。","caption"));
   }
 }

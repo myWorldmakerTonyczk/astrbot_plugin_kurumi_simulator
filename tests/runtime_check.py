@@ -78,6 +78,7 @@ async def check():
         if expected == 200:
             data = json.loads(result.body)
             assert data["games"] == []
+            assert data["workspace"]["mode"] == {"multiplayer": False, "main_user_id": ""}
             assert "market_key" not in data["connection"]
 
     async def post(handler, body, username="admin"):
@@ -99,6 +100,11 @@ async def check():
         ):
             return await handler()
 
+    assert (await post(plugin.web_command, {"action":"workspace_mode","multiplayer":True}, None)).status_code == 401
+    assert (await post(plugin.web_command, {"action":"workspace_mode","multiplayer":False,"main_user_id":"missing"})).status_code == 400
+    assert (await post(plugin.web_command, {"action":"workspace_mode","multiplayer":True})).status_code == 200
+    assert plugin.workspace_mode([])["multiplayer"] is True
+    assert (await post(plugin.web_command, {"action":"workspace_mode","multiplayer":False})).status_code == 200
     assert (await post(plugin.web_llm_settings, {"mode":"custom","api_base":"https://example.com/v1","model":"test"}, None)).status_code==401
     assert (await post(plugin.web_llm_settings, {"mode":"custom","api_base":"https://example.com/v1","model":"test","api_key":"private-llm-key","headers":{"X-Secret":"private-header"}})).status_code==200
     public_scope=dict(type="http",method="GET",path="/test",query_string=b"",headers=[],server=("test",80))

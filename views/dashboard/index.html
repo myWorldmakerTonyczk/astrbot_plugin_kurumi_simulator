@@ -477,12 +477,17 @@
           </nav>
           <div data-settings-page="users">
             <section class="panel" id="access-scaffold">
-              <h3>虚拟用户与实例权限</h3>
-              <p>用户可通过随机ID、QQ号或完整会话UMO识别。这里统一管理昵称、绑定信息、看盘间隔和主动汇报权限。</p>
-              <p class="caption">此页由AstrBot控制台管理员管理；聊天工具按用户归属隔离。展开用户卡片查看全部绑定和设置。</p>
-              <div class="form-grid"><label>用户昵称（选填）<input id="new-user-nickname" maxlength="40" placeholder="留空递增命名"></label>
-                <button type="button" id="generate-user-id">生成虚拟用户ID</button></div>
-              <p class="caption">ID由管理员生成和刷新，旧ID立即失效，实例与交易数据不变。随机ID方式在每次工具调用的user_id参数中携带。</p>
+              <h3>用户与权限</h3>
+              <form id="workspace-mode-settings">
+                <label class="check"><input name="multiplayer" type="checkbox">开启多人模式</label>
+                <label>主用户<select name="main_user_id"></select></label>
+                <p class="caption">单人模式只显示主用户的设置和实例。切换模式会保留所有用户与交易记录。聊天工具按用户归属隔离。</p>
+                <button type="submit">保存用户模式</button>
+              </form>
+              <div id="multi-user-controls" hidden>
+                <div class="form-grid"><label>用户昵称（选填）<input id="new-user-nickname" maxlength="40" placeholder="留空递增命名"></label>
+                  <button type="button" id="generate-user-id">生成虚拟用户ID</button></div>
+              </div>
               <div id="managed-users"></div>
             </section>
           </div>
