@@ -12,17 +12,23 @@ export class PortalTrading {
     this.root = root;
     this.api = api;
     this.version = 0;
+    this.chartVersion = 0;
     this.pending = new Map();
     this.busy = false;
     this.gid = "";
     root.innerHTML = `
-      <div class="portal-desk-heading"><div><h2>模拟操作</h2><p>操作会写入这个实例的交易日志。</p></div>
-      <button class="desk-refresh" type="button">刷新持仓</button></div>
+      <div class="portal-desk-heading"><div><h2>交易工作台</h2><p>操作会写入这个实例的交易日志。</p></div>
+      <button class="desk-refresh" type="button">刷新行情与持仓</button></div>
       <p class="desk-status" role="status"></p>
       <div class="desk-balances"></div>
       <div class="portal-desk-grid">
+        <aside class="portal-card desk-pairs"><h3>货币对</h3><div></div></aside>
+        <section class="portal-card desk-market">
+          <h3>市场观察</h3><p class="desk-market-status" role="status"></p><div class="desk-chart"></div>
+        </section>
         <form class="portal-card desk-order" hidden>
-          <h3>开仓</h3>
+          <h3>开一笔模拟交易</h3>
+          <fieldset>
           <div class="desk-fields">
             <label>货币对 <select name="pair" required></select></label>
             <label>方向 <select name="side"><option value="buy">做多</option><option value="sell">做空</option></select></label>
@@ -34,13 +40,14 @@ export class PortalTrading {
           <p class="desk-quote"></p>
           <label>操作理由 <textarea name="reason" maxlength="500" rows="2" required></textarea></label>
           <button type="submit">提交模拟开仓</button>
+          </fieldset>
         </form>
         <div class="desk-positions"></div>
       </div>`;
     this.order = root.querySelector(".desk-order");
     this.status = root.querySelector(".desk-status");
     root.querySelector(".desk-refresh").onclick = () => this.load();
-    this.order.elements.pair.onchange = () => this.quote();
+    this.order.elements.pair.onchange = () => this.selectPair();
     this.order.onsubmit = event => {
       event.preventDefault();
       const params = Object.fromEntries(new FormData(this.order));
@@ -62,6 +69,11 @@ export class PortalTrading {
   close() {
     this.gid = "";
     this.version++;
+    this.chartVersion++;
+    this.chart?.remove();
+    this.chart = null;
+    this.root.querySelector(".desk-market-status").textContent = "";
+    this.root.querySelector(".desk-pairs > div").replaceChildren();
     this.root.hidden = true;
     this.order.hidden = true;
     this.root.querySelector(".desk-positions").replaceChildren();
@@ -85,9 +97,65 @@ export class PortalTrading {
     } catch (error) {
       if (version !== this.version) return;
       this.order.hidden = true;
+      this.chartVersion++;
+      this.chart?.remove();
+      this.chart = null;
+      this.root.querySelector(".desk-pairs > div").replaceChildren();
+      this.root.querySelector(".desk-market-status").textContent = "";
       this.root.querySelector(".desk-positions").replaceChildren();
       this.root.querySelector(".desk-balances").replaceChildren();
       this.message(error.message, true);
+    }
+  }
+
+  selectPair() {
+    const pair = this.order.elements.pair.value;
+    this.quote();
+    const pairs = this.root.querySelector(".desk-pairs > div");
+    pairs.replaceChildren(...this.data.game.pairs.map(symbol => {
+      const button = el("button", null, "desk-pair");
+      button.type = "button";
+      button.setAttribute("aria-pressed", String(symbol === pair));
+      button.append(el("strong", symbol), el("small", this.data.quotes[symbol]?.bid ?? "暂无报价"));
+      button.onclick = () => {
+        this.order.elements.pair.value = symbol;
+        this.selectPair();
+      };
+      return button;
+    }));
+    this.loadChart(pair);
+  }
+
+  async loadChart(pair) {
+    const version = ++this.chartVersion;
+    const status = this.root.querySelector(".desk-market-status");
+    this.chart?.remove();
+    this.chart = null;
+    status.textContent = pair + " · 正在读取行情…";
+    try {
+      const data = await this.api("review?" + new URLSearchParams({game: this.gid, pair, days: 1}));
+      if (version !== this.chartVersion) return;
+      if (!data.candles.length) {
+        status.textContent = pair + " · 这段时间暂无 K 线";
+        return;
+      }
+      const L = window.LightweightCharts;
+      this.chart = L.createChart(this.root.querySelector(".desk-chart"), {
+        autoSize: true, height: 320,
+        layout: {background: {color: "#fcfafd"}, textColor: "#59495d"},
+        grid: {vertLines: {color: "#eee6ee"}, horzLines: {color: "#eee6ee"}},
+        timeScale: {timeVisible: true},
+      });
+      const precision = pair.endsWith("/JPY") ? 3 : 5;
+      this.chart.addSeries(L.CandlestickSeries, {
+        upColor: "#16786e", downColor: "#a84664", borderVisible: false,
+        wickUpColor: "#16786e", wickDownColor: "#a84664",
+        priceFormat: {type: "price", precision, minMove: 10 ** -precision},
+      }).setData(data.candles);
+      this.chart.timeScale().fitContent();
+      status.textContent = pair + " · " + data.period + " K 线";
+    } catch (error) {
+      if (version === this.chartVersion) status.textContent = pair + " · " + error.message;
     }
   }
 
@@ -101,7 +169,7 @@ export class PortalTrading {
   render(data) {
     this.data = data;
     const allowed = data.game.trade && data.status === "running";
-    this.message(!data.game.trade ? "此实例尚未获得网页交易权限。" :
+    this.message(!data.game.trade ? "此实例为只读。管理员可在 AstrBot 的实例「用户网页权限」中开启网页交易。" :
       data.status !== "running" ? "本局当前不可交易。" : data.market_error || "已同步当前持仓。");
     const totals = this.root.querySelector(".desk-balances");
     totals.replaceChildren();
@@ -110,7 +178,8 @@ export class PortalTrading {
       item.append(el("span", label), el("strong", data.valuation ? "$" + number(data.valuation[field]) : "—"));
       totals.append(item);
     }
-    this.order.hidden = !allowed;
+    this.order.hidden = false;
+    this.order.querySelector("fieldset").disabled = !allowed;
     const pair = this.order.elements.pair.value;
     this.order.elements.pair.replaceChildren(...data.game.pairs.map(p => new Option(p, p)));
     if (data.game.pairs.includes(pair)) this.order.elements.pair.value = pair;
@@ -118,7 +187,7 @@ export class PortalTrading {
     if (!this.order.elements.leverage.value || Number(this.order.elements.leverage.value) > Number(data.leverage)) {
       this.order.elements.leverage.value = data.leverage;
     }
-    this.quote();
+    this.selectPair();
     const list = this.root.querySelector(".desk-positions");
     list.replaceChildren(el("h3", `当前持仓 · ${data.positions.length} 笔`));
     if (!data.positions.length) list.append(el("p", "当前没有持仓。"));

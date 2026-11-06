@@ -22,17 +22,14 @@ body { margin: 0; }
 #portal-login, .desk-order, .desk-positions form { display: grid; gap: 12px; }
 #portal-login label, .desk-order label, .desk-positions form label { display: grid; gap: 5px; }
 #portal-login input { width: 100%; }
-#portal-login button, .desk-order > button { justify-self: start; background: #167064; color: white; }
-#portal-login button:hover, .desk-order > button:hover { background: #105448; }
-.portal-tabs, .portal-desk-heading { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; }
-.portal-tabs [aria-pressed=true] { color: white; background: #167064; border-color: #167064; }
-.portal-tabs [aria-pressed=true]:hover { background: #105448; }
+#portal-login button { justify-self: start; background: #167064; color: white; }
+#portal-login button:hover { background: #105448; }
+.portal-desk-heading { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; }
 .portal-desk-heading { justify-content: space-between; }
 .portal-desk-heading h2, .portal-desk-heading p { margin: 4px 0; }
 .portal-desk-heading p, .desk-status, .desk-quote { color: #53665c; }
 .portal-desk-grid { display: grid; grid-template-columns: minmax(0, 390px) minmax(0, 1fr); gap: 18px; align-items: start; }
 .desk-positions { grid-column: 2; min-width: 0; }
-.desk-order[hidden] + .desk-positions { grid-column: 1 / -1; }
 .desk-positions .portal-card { margin: 0 0 10px; padding: 14px; max-width: none; }
 .desk-positions h3, .desk-positions h4, .desk-order h3 { margin: 0 0 8px; }
 .desk-fields, .desk-balances { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
@@ -43,7 +40,6 @@ body { margin: 0; }
 .desk-balances strong { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .desk-positions details form { margin-top: 10px; }
 .desk-positions summary { cursor: pointer; }
-@media (max-width: 760px) { .portal-desk-grid { grid-template-columns: minmax(0,1fr); } .desk-positions { grid-column: 1; } }
 
 :root { background: #f1edf2; }
 .portal-header { border-color: #ded3df; }
@@ -62,14 +58,95 @@ body { margin: 0; }
 .portal-welcome-content h2 { font-size: clamp(1.4rem, 3vw, 2rem); color: #55344f; }
 .portal-welcome-content p { line-height: 1.6; color: #5f5260; }
 #portal-login button { width: 100%; padding: 10px; }
-.portal:has(#portal-welcome[hidden]) .portal-header {
-  min-height: 124px; padding: 20px 24px; border-radius: 14px;
-  background: linear-gradient(90deg, #f3e8ef 47%, #f3e8ef00 78%), url("/assets/portal-kurumi-header.webp") right 36% / min(48%, 460px) auto no-repeat, #f3e8ef;
-  margin-bottom: 18px;
+
+/* Match the embedded dashboard workspace while keeping the public login separate. */
+.portal-shell:has(.portal-sidebar:not([hidden])) {
+  display: grid; grid-template-columns: 182px minmax(0,1fr); min-height: 100vh;
+  background: #f7f4f8;
 }
-.portal:has(#portal-welcome[hidden]) .portal-header > div { max-width: 68%; }
-@media (max-width: 680px) {
-  #portal-welcome { grid-template-columns: minmax(0, 1fr); margin-top: 20px; }
-  .portal-welcome-art { min-height: 150px; }
-  .portal:has(#portal-welcome[hidden]) .portal-header { padding: 12px; min-height: 90px; }
+.portal-shell:has(.portal-sidebar:not([hidden])) .portal {
+  width: 100%; max-width: none; padding: 22px clamp(16px, 2vw, 36px) 48px;
+}
+.portal-sidebar {
+  position: sticky; top: 0; align-self: start; min-height: 100vh;
+  padding: 26px 18px; background: #f2eaf2; border-right: 1px solid #e4d8e5;
+  color: #352c3e;
+}
+.portal-brand, .portal-header-actions { display: flex; gap: 12px; align-items: center; }
+.portal-brand img { width: 44px; height: 44px; border-radius: 14px; border: 1px solid white; }
+.portal-brand small { display: block; color: #6b5c74; }
+.portal-sidebar nav { display: grid; gap: 8px; margin-top: 34px; }
+.portal-sidebar button {
+  background: transparent; border: 0; border-radius: 8px; cursor: pointer;
+  text-align: left; color: inherit; font: inherit; padding: 12px;
+}
+.portal-sidebar button:hover, .portal-sidebar button[aria-pressed=true] { background: #fff; color: #8c4272; }
+.portal-sidebar button[aria-pressed=true] { font-weight: 700; }
+.portal-sidebar button:focus-visible { outline: 2px solid #8c4272; }
+.portal-sidebar > p { color: #6b5c74; line-height: 1.9; margin-top: 64px; }
+.portal-header-actions { justify-content: flex-end; flex-wrap: wrap; }
+.portal-shell:has(.portal-sidebar:not([hidden])) .portal-header h1 { color: #352c3e; }
+.portal-shell:has(.portal-sidebar:not([hidden])) #portal-status {
+  background: #ece8f5; color: #5e5072; border-radius: 6px; padding: 10px 14px;
+}
+.portal-banner {
+  margin: 22px 0 26px; padding: 26px clamp(16px,3vw,34px); min-height: 170px;
+  border: 1px solid #eadce7; border-radius: 13px; color: #603954;
+  background: linear-gradient(90deg,#f1e8ef 41%,#f1e8ef00 72%),
+    url("/assets/hero-green.png") right 43% / 57% auto no-repeat, #f1e8ef;
+}
+.portal-banner h2 { margin: 8px 0; font-size: clamp(1.3rem,2.2vw,1.9rem); }
+.portal-banner p { margin: 0 0 10px; }
+.portal-banner small { color: #756075; }
+.portal:has([data-page="journal"]:not([hidden])) .portal-banner {
+  background-image: linear-gradient(90deg,#f1e8ef 48%,#f1e8ef28 85%), url("/assets/portal-kurumi-journal.webp");
+  background-position: right 33%;
+}
+.portal:has([data-page="notebook"]:not([hidden])) .portal-banner {
+  background-image: linear-gradient(90deg,#f1e8ef 48%,#f1e8ef28 85%), url("/assets/portal-kurumi-notebook.webp");
+  background-position: right 33%;
+}
+.portal:has(#portal-trading:not([hidden])) .portal-banner {
+  background-image: linear-gradient(90deg,#f1e8ef 48%,#f1e8ef22 85%), url("/assets/portal-kurumi-header.webp");
+  background-position: right 31%;
+}
+.portal-welcome-art {
+  background: linear-gradient(90deg, #faf5fa 2%, #faf5fa00 16%),
+    url("/assets/portal-kurumi.webp") 100% center / auto 108% no-repeat, #faf5fa;
+}
+.portal-desk-grid { grid-template-columns: minmax(110px,.65fr) minmax(0,3fr) minmax(245px,1.45fr); }
+.portal-desk-grid .portal-card { max-width: none; min-width: 0; }
+.desk-positions { grid-column: 2; }
+.desk-order fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 12px; }
+.desk-order fieldset button { background: #167064; color: #fff; }
+.desk-order fieldset:disabled button { cursor: not-allowed; }
+.desk-pairs > div { display: grid; gap: 8px; }
+.portal button.desk-pair { display: grid; gap: 4px; text-align: left; }
+.portal button.desk-pair[aria-pressed=true] { background: #eadbe9; border-color: #9d6b91; }
+.desk-market h3, .desk-pairs h3 { margin-top: 0; }
+.desk-market-status { color: #66566c; }
+.portal-record-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.portal-record-body { display: grid; gap: 12px; }
+.portal-records[data-page="notebook"] .portal-record-body { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.portal-record-body article { padding: 16px 20px; border: 1px solid #e4d8e5; border-radius: 12px; background: #fff; }
+.portal-record-body h3 { margin: 6px 0; }
+.portal-record-body small { color: #6b5c74; }
+.portal-record-body p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+.portal-record-body summary { cursor: pointer; padding: 10px 0; color: #8c4272; }
+@media (max-width: 1150px) {
+  .portal-desk-grid { grid-template-columns: minmax(105px,1fr) minmax(0,4fr); }
+  .desk-order, .desk-positions { grid-column: 2; }
+}
+@media (max-width: 760px) {
+  .portal-shell:has(.portal-sidebar:not([hidden])) { display: block; }
+  .portal-sidebar { position: static; min-height: 0; padding: 12px 16px; }
+  .portal-sidebar nav { display: flex; flex-wrap: wrap; margin-top: 10px; gap: 4px; }
+  .portal-sidebar button { padding: 8px; }
+  .portal-sidebar > p { display: none; }
+  .portal-desk-grid, .portal-records[data-page="notebook"] .portal-record-body { grid-template-columns: minmax(0,1fr); }
+  .desk-order, .desk-positions { grid-column: 1; }
+  .desk-pairs > div { display: flex; flex-wrap: wrap; }
+  .portal-banner { background-size: auto, auto 100%; }
+  #portal-welcome { grid-template-columns: minmax(0,1fr); margin-top: 20px; }
+  .portal-welcome-art { min-height: 190px; background-position: right center; background-size: auto, cover; }
 }

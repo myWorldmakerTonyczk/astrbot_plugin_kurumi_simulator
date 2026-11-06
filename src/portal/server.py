@@ -7,6 +7,8 @@ from urllib.parse import urlsplit
 from aiohttp import web
 
 from ..core.replay import review
+from ..core.journal import journal
+from ..diary.store import redact
 from .access import PortalAccess
 from .accounts import ACCOUNT_TTL, PortalAccounts
 from .operations import Operations
@@ -15,6 +17,10 @@ COOKIE = "__Host-kurumi"
 DEFAULTS = dict(enabled=False, origin="", bind="127.0.0.1", port=8791)
 ROOT = Path(__file__).resolve().parents[2] / "views" / "dashboard"
 ASSETS = {
+    "avatar.png": "assets/avatar.png",
+    "hero-green.png": "assets/hero-green.png",
+    "portal-kurumi-notebook.webp": "assets/portal-kurumi-notebook.webp",
+    "portal-kurumi-journal.webp": "assets/portal-kurumi-journal.webp",
     "portal-kurumi.webp": "assets/portal-kurumi.webp",
     "portal-kurumi-header.webp": "assets/portal-kurumi-header.webp",
     "portal.js": "portal.js", "portal.css": "portal.css", "portal-trading.js": "portal-trading.js",
@@ -119,6 +125,7 @@ class Portal(Operations):
             web.post("/api/logout", self.logout), web.get("/api/review", self.review),
             web.post("/api/login", self.login), web.get("/api/account", self.account_state),
             web.post("/api/action", self.action),
+            web.get("/api/journal", self.journal), web.get("/api/notebook", self.notebook),
         ])
         return app
 
@@ -172,7 +179,7 @@ class Portal(Operations):
         if not path:
             raise web.HTTPNotFound()
         suffix = Path(path).suffix
-        content_type = {".js": "text/javascript", ".css": "text/css", ".txt": "text/plain", ".webp": "image/webp"}[suffix]
+        content_type = {".js": "text/javascript", ".css": "text/css", ".txt": "text/plain", ".webp": "image/webp", ".png": "image/png"}[suffix]
         return web.FileResponse(ROOT / path, headers={"Content-Type": content_type})
 
     async def payload(self, request):
@@ -257,3 +264,34 @@ class Portal(Operations):
             raise web.HTTPUnauthorized()
         self.game(request, session)
         return web.json_response(result)
+
+    def records_game(self, request):
+        session = self.identity(request)
+        if session["mode"] == "summary":
+            raise web.HTTPForbidden()
+        return self.game(request, session)
+
+    async def journal(self, request):
+        game = self.records_game(request)
+        result = journal(
+            self.plugin.engine, game["id"], page=int(request.query.get("page", 1)),
+            before=int(request.query.get("before", 0)), filter=request.query.get("filter", "all"),
+        )
+        result["logs"] = [
+            dict(time=row["created"], action=row["action"], source=row["source"], status=row["status"],
+                 reason=redact(row.get("reason") or ""))
+            for row in result["logs"]
+        ]
+        return web.json_response(result)
+
+    async def notebook(self, request):
+        game = self.records_game(request)
+        db = self.plugin.engine.db
+        diaries = db.execute(
+            """SELECT day,content FROM diaries WHERE game=? AND status='success'
+               ORDER BY day DESC LIMIT 31""", (game["id"],)
+        ).fetchall()
+        return web.json_response(dict(
+            plan=redact(game.get("plan") or ""),
+            diaries=[dict(day=row[0], content=redact(row[1] or "")) for row in diaries],
+        ))

@@ -85,6 +85,22 @@ class PortalTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["diaries"], [])
         self.assertNotIn("本人的私人策略", str(data))
 
+    async def test_portal_records_require_owner_or_private_read_link(self):
+        gid = self.first["id"]
+        for path in ("/api/journal", "/api/notebook"):
+            response = await self.client.get(path, params={"game": gid})
+            self.assertEqual(response.status, 401)
+        summary = await self.exchange("summary")
+        for path in ("/api/journal", "/api/notebook"):
+            response = await self.client.get(path, params={"game": gid}, headers=summary)
+            self.assertEqual(response.status, 403)
+        read = await self.exchange("read")
+        for path in ("/api/journal", "/api/notebook"):
+            response = await self.client.get(path, params={"game": gid}, headers=read)
+            self.assertEqual(response.status, 200)
+            response = await self.client.get(path, params={"game": self.other["id"]}, headers=read)
+            self.assertEqual(response.status, 403)
+
     async def test_account_login_and_trade_require_owner_and_explicit_grant(self):
         owner = self.first["owner_id"]
         gid = self.first["id"]

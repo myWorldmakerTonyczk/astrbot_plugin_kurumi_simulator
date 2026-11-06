@@ -10,10 +10,24 @@
   <script src="/assets/portal.js" type="module"></script>
 </head>
 <body>
+  <div class="portal-shell">
+    <aside id="portal-sidebar" class="portal-sidebar" hidden>
+      <div class="portal-brand"><img src="/assets/avatar.png" alt=""><div><strong>久留美</strong><small>模拟器</small></div></div>
+      <nav aria-label="用户面板">
+        <button type="button" data-portal-page="review" aria-pressed="true">AI 复盘</button>
+        <button type="button" data-portal-page="trading" aria-pressed="false">交易工作台</button>
+        <button type="button" data-portal-page="journal" aria-pressed="false">交易日志</button>
+        <button type="button" data-portal-page="notebook" aria-pressed="false">计划与经验</button>
+      </nav>
+      <p>真实行情<br>虚拟资金</p>
+    </aside>
   <main class="portal">
     <header class="portal-header">
       <div><span>久留美模拟器</span><h1 id="portal-title">她的交易记录</h1></div>
-      <button id="portal-logout" type="button" hidden>退出面板</button>
+      <div class="portal-header-actions">
+        <label id="portal-tabs" hidden>交易实例 <select id="portal-instance"></select></label>
+        <button id="portal-logout" type="button" hidden>退出面板</button>
+      </div>
     </header>
     <p id="portal-status" role="status"></p>
     <section id="portal-welcome" class="portal-card">
@@ -29,13 +43,16 @@
       <button id="portal-exchange" type="button" hidden>打开只读面板</button>
       </div>
     </section>
-    <nav id="portal-tabs" class="portal-tabs" aria-label="用户面板" hidden>
-      <label>交易实例 <select id="portal-instance"></select></label>
-      <button type="button" data-portal-page="review" aria-pressed="true">AI 复盘</button>
-      <button type="button" data-portal-page="trading" aria-pressed="false">模拟操作</button>
-    </nav>
+    <section id="portal-banner" class="portal-banner" hidden>
+      <p>久留美的外汇日记</p>
+      <h2>每一笔，都有她的理由。</h2>
+      <p>行情不总是顺心，每一次经历都值得复盘。</p>
+      <small>真实行情 / 虚拟资金 / 自己摸索</small>
+    </section>
     <section id="portal-review" class="public-replay" hidden></section>
     <section id="portal-trading" hidden></section>
+    <section id="portal-records" class="portal-records" hidden></section>
   </main>
+  </div>
 </body>
 </html>
