@@ -23,6 +23,7 @@ export class JournalPanel {
     this.gid = "";
     this.version = 0;
     this.form.onchange = () => this.load(1, 0);
+    document.getElementById("journal-refresh").onclick = () => this.load(1, 0);
     this.form.onreset = () => queueMicrotask(() => this.load(1, 0));
     this.prev.onclick = () => this.load(this.page - 1, this.before);
     this.next.onclick = () => this.load(this.page + 1, this.before);

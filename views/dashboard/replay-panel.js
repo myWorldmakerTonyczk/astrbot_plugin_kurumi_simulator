@@ -70,7 +70,7 @@ export class ReplayPanel {
               <option value="trade">成交</option><option value="review">看盘与观望</option><option value="plan">策略调整</option>
               <option value="failure">失败记录</option><option value="ai">仅 AI</option><option value="system">仅系统</option></select></div>
           <ol class="replay-timeline"></ol></div>
-        <aside class="replay-side"><section class="replay-fill-summary" hidden></section><div class="replay-detail" aria-live="polite"></div></aside>
+        <div class="replay-side" role="complementary" aria-label="成交统计与操作详情"><section class="replay-fill-summary" hidden></section><div class="replay-detail" aria-live="polite"></div></div>
       </div>`;
     this.form = root.querySelector("form");
     this.pairNav = root.querySelector(".replay-pairs");
@@ -411,7 +411,7 @@ export class ReplayPanel {
     right.replaceChildren();
     left.hidden = right.hidden = !this.data;
     if (!this.data) return;
-    const fills = this.data.events.filter(event => event.pair === this.data.pair && fill(event));
+    const fills = this.data.events.filter(event => event.position?.pair === this.data.pair && fill(event));
     const opens = fills.filter(event => event.action === "open");
     const closes = fills.filter(event => event.action === "close");
     const longs = opens.filter(event => event.position?.side === "buy").length;
@@ -437,6 +437,7 @@ export class ReplayPanel {
       right.append(row);
     }
     right.append(el("small", "开仓 " + opens.length + " 笔 · 平仓 " + closes.length + " 笔"));
+    if (this.data.truncated) right.append(el("small", "仅统计已加载的记录"));
   }
 
   drawActivity() {

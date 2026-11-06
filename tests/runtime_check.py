@@ -57,7 +57,7 @@ with patch.object(StarTools, "get_data_dir", return_value=Path(temporary.name)):
     assert len(registered_tools) == len(EXPECTED_TOOLS)
     assert {tool.name for tool in registered_tools} == EXPECTED_TOOLS
     explicit = module.KurumiSimulator(context, {})
-    assert len(routes) == 26
+    assert len(routes) == 28
     assert len(registered_tools) == 2 * len(EXPECTED_TOOLS)
     explicit.engine.db.close()
 
@@ -149,6 +149,15 @@ async def check():
     assert plugin.settings()["market_source"] == "oanda"
     position = plugin.engine.get(game["id"])["positions"][0]["id"]
     plugin.engine.action(game["id"], "close", dict(position=position))
+    journal_scope = dict(public_scope, query_string=(
+        "game=" + game["id"] + "&filter=fills&sort=oldest"
+    ).encode())
+    with bind_request_context(PluginRequest(Request(journal_scope), username=None)):
+        assert (await plugin.web_journal()).status_code == 401
+    with bind_request_context(PluginRequest(Request(journal_scope), username="admin")):
+        response = await plugin.web_journal()
+    assert response.status_code == 200
+    assert [row["action"] for row in json.loads(response.body)["logs"]] == ["open", "close"]
     previous = plugin.engine.get(game["id"])["action_revision"]
     result = await post(plugin.web_settings, {"market_source": "sina"})
     assert result.status_code == 200

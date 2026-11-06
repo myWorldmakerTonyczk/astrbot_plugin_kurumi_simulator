@@ -43,8 +43,8 @@ export class DiaryPanel {
     if (gid !== this.gid) {
       this.gid = gid;
       this.before = "";
-    this.entries = [];
-    this.selectedDay = "";
+      this.entries = [];
+      this.selectedDay = "";
       this.generation++;
       this.loading = false;
       document.getElementById("diary-entries").replaceChildren();

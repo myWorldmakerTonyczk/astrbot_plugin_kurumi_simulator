@@ -1698,9 +1698,6 @@ main {
   white-space: nowrap;
 }
 
-.diary-entry { border-top: 1px solid var(--border, #eadde5); padding: 14px 0; }
-.diary-entry summary { cursor: pointer; font-weight: 600; }
-.diary-entry pre { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.85; }
 
 .settings-pages { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 24px; }
 .settings-pages .selected { background:#eadbea; color:#873d73; border-color:#c99fbd; }
@@ -1728,7 +1725,7 @@ details.managed-user { display:block; padding:18px; border:1px solid #e5d4e2; bo
 .notebook-prose ul { padding-inline-start: 1.35em; }
 .notebook-prose p:last-child { margin-bottom: 0; }
 #diary-entries { display: grid; grid-template-columns: minmax(6.8rem, auto) minmax(0, 1fr); gap: 15px; align-items: start; }
-#diary-entries nav { display: grid; gap: 4px; }
+#diary-entries nav { display: grid; gap: 4px; margin: 0; }
 #diary-entries nav small { margin: 8px 0 2px; color: var(--muted); }
 #diary-entries nav button { text-align: left; font-size: .82rem; padding: 7px; }
 #diary-entries nav button[aria-pressed="true"] { background: #e7f0eb; border-color: #85aa9b; }

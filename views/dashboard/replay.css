@@ -59,7 +59,7 @@
 
 
 .replay-layout:has(> .replay-pairs:not([hidden])) { grid-template-columns: 135px minmax(0, 1fr) clamp(235px, 26%, 420px); }
-.replay-pairs { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--review-line); border-radius: 12px; background: var(--review-paper); }
+.replay-pairs { display: grid; gap: 6px; margin: 0; padding: 10px; border: 1px solid var(--review-line); border-radius: 12px; background: var(--review-paper); }
 .replay-pairs[hidden] { display: none; }
 .replay-pairs summary { cursor: pointer; font-size: .88rem; font-weight: 650; padding: 3px 0; }
 .replay-pair-selection { display: block; padding-top: 4px; color: var(--review-muted); font-size: .75rem; }

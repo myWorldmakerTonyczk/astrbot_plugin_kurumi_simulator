@@ -2,6 +2,7 @@
 
 import json
 import mimetypes
+import os
 import sys
 import time
 from io import BytesIO
@@ -69,7 +70,12 @@ js = """window.fixture=FIXTURE;window.AstrBotPluginView={
    if(params.after===undefined)return {cursor:window.alertSeq,events:[],has_more:false};
    return {cursor:window.alertSeq,events:window.alertEvents.filter(e=>e.id>params.after),has_more:false};
  }
- if(endpoint==='diaries')return {entries:[{day:'2026-11-03',status:'success',content:'今天认真观察了行情，也和你聊了天。'}],next_before:'2026-11-03'};
+ if(endpoint==='diaries')return {entries:[{day:'2026-11-03',status:'success',content:'今天认真观察了行情，也和你聊了天。'},{day:'2026-11-02',status:'success',content:'复盘上一笔交易。'}],next_before:'2026-11-03'};
+ if(endpoint==='journal'){
+  window.journalRequest=params;
+  const logs=(window.instanceSnapshots?.[params.game]||window.fixture.current).logs;
+  return {page:params.page,before:params.before||500,next_page:params.page===1?2:null,logs:logs.slice(0,1)};
+ }
  if(endpoint==='review'){
   const t=Math.floor(Date.now()/900000)*900;
   return {pair:params.pair||'EUR/USD',pairs:window.fixture.current.game.pairs,
@@ -138,6 +144,8 @@ with sync_playwright() as p:
     page.wait_for_selector("#replay:not([hidden])")
     assert page.locator("#instance-nav button").first.inner_text() == "AI 复盘"
     page.wait_for_selector(".replay-row")
+    assert "做多 1 / 做空 0" in page.locator(".replay-pair-mix").inner_text()
+    assert "开仓 1 笔 · 平仓 1 笔" in page.locator(".replay-fill-summary").inner_text()
     single_pair = page.get_by_role("navigation", name="复盘货币对")
     assert single_pair.get_by_role("button", name="EUR/USD", pressed=True).is_visible()
     assert page.locator(".replay-current-pair").inner_text() == "EUR/USD"
@@ -185,7 +193,11 @@ with sync_playwright() as p:
     assert "记录观望 × 1" in page.locator(".replay-detail").inner_text()
     page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
     floating = page.locator(".replay-market.is-floating")
+    out = Path(os.environ.get("KURUMI_SCREENSHOT_DIR", root / "docs/screenshots"))
+    out.mkdir(parents=True, exist_ok=True)
     floating.wait_for()
+    assert page.locator(".replay-side").evaluate("element => getComputedStyle(element).position") == "sticky"
+    page.screenshot(path=str(out / "replay-updated.png"))
     original = floating.bounding_box()
     handle = floating.locator(".replay-chart-top strong").bounding_box()
     page.mouse.move(handle["x"] + 10, handle["y"] + 5)
@@ -304,8 +316,6 @@ with sync_playwright() as p:
     assert "虚拟资金已追加" in page.locator("#trade-notice-title").inner_text()
     page.locator("#trade-notice button").click()
 
-    out = root / "docs/screenshots"
-    out.mkdir(parents=True, exist_ok=True)
     page.evaluate("window.scrollTo(0,0)")
     page.screenshot(path=str(out / "desktop.png"), full_page=True)
     page.evaluate("window.scrollTo(0,600)")
@@ -507,6 +517,14 @@ with sync_playwright() as p:
     page.locator("#diary-refresh").click()
     page.wait_for_function("document.querySelector('#diary-entries').textContent.includes('2026-11-03')")
     assert "今天认真观察" in page.locator("#diary-entries").inner_text()
+    page.locator('#diary-entries [data-day="2026-11-02"]').click()
+    assert "复盘上一笔交易" in page.locator(".notebook-reader").inner_text()
+    page.evaluate("window.fixture.current.game.plan = '【当前状态】EUR/USD 持仓一笔\\n【下一步】等待确认\\n- 复核保护线\\n【风控】不加仓'")
+    page.locator("#refresh").click()
+    page.wait_for_selector("#plan h4")
+    assert page.locator("#plan h4").all_inner_texts() == ["当前状态", "下一步", "风控"]
+    assert page.locator("#plan li").inner_text() == "复核保护线"
+    page.screenshot(path=str(out / "notebook-updated.png"), full_page=True)
     page.screenshot(path=str(out / "memory.png"), full_page=True)
 
     page.set_viewport_size({"width": 390, "height": 844})
@@ -607,6 +625,12 @@ with sync_playwright() as p:
     page.get_by_role("button", name="交易日志", exact=True).click()
     assert "甲的第二盘专属日志" in page.locator("#logs").inner_text()
     assert "乙的第一盘专属日志" not in page.locator("#logs").inner_text()
+    page.locator('#journal-filters [name="source"]').select_option("human")
+    page.wait_for_function("window.journalRequest?.source === 'human'")
+    page.locator("#journal-next").click()
+    page.wait_for_function("window.journalRequest?.page === 2 && window.journalRequest?.before === 500")
+    assert "第 2 页" in page.locator("#journal-status").inner_text()
+    page.screenshot(path=str(out / "journal-updated.png"), full_page=True)
     page.locator("#back-to-catalog").click()
     page.wait_for_selector("#instance-catalog:not([hidden])")
     assert page.locator("#instance-nav").is_hidden()
