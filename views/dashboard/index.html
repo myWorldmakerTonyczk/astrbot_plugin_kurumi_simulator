@@ -483,10 +483,7 @@
                 <label>主用户<select name="main_user_id"></select></label>
                 <p class="caption">单人模式只显示主用户的设置和实例。切换模式会保留所有用户与交易记录。聊天工具按用户归属隔离。</p>
               </form>
-              <div id="multi-user-controls" hidden>
-                <div class="form-grid"><label>用户昵称（选填）<input id="new-user-nickname" maxlength="40" placeholder="留空递增命名"></label>
-                  <button type="button" id="generate-user-id">生成虚拟用户ID</button></div>
-              </div>
+              <div id="workspace-role-settings"></div>
               <div id="managed-users"></div>
               <div class="connection-actions"><button type="submit" form="workspace-mode-settings">保存设置</button><span id="workspace-save-status" role="status"></span></div>
             </section>
@@ -701,7 +698,7 @@
                 maxlength="40"
                 placeholder="留空自动命名：用户1、用户2…"
               /><span class="caption"
-                >相同绑定复用已有用户和昵称。QQ、UMO不按号码相似性合并；随机ID可以访问对应虚拟用户的所有实例。</span
+                >相同的私聊 UMO 会复用已有用户和昵称。</span
               ></label
             >
           </fieldset>
@@ -915,27 +912,10 @@
         </button>
       </div>
     </dialog>
-    <dialog
-      id="rotate-user-dialog"
-      class="instance-config-dialog delete-instance-dialog"
-      aria-labelledby="rotate-user-title"
-    >
-      <h2 id="rotate-user-title">刷新用户ID</h2>
-      <p id="rotate-user-name"></p>
-      <p>
-        旧ID会立即失效；此用户的全部实例、交易记录和计划保持不变。将新ID交给用户后，LLM调用工具时需要携带新ID。
-      </p>
-      <div class="delete-dialog-actions">
-        <button type="button" data-close-dialog="rotate-user-dialog">
-          取消</button
-        ><button type="button" id="confirm-rotate-user" class="primary">
-          生成新ID
-        </button>
-      </div>
-    </dialog>
+
     <dialog id="delete-user-dialog" class="instance-config-dialog delete-instance-dialog" aria-labelledby="delete-user-title">
       <h2 id="delete-user-title">删除虚拟用户</h2><p id="delete-user-description"></p>
-      <p>将删除此用户的随机ID、QQ/UMO绑定，以及全部所属实例、交易日志、计划、日记和待发通知。其他用户不受影响，此操作不可恢复。</p>
+      <p>将删除此用户的绑定信息，以及全部所属实例、交易日志、计划、日记和待发通知。其他用户不受影响，此操作不可恢复。</p>
       <div class="delete-dialog-actions"><button type="button" data-close-dialog="delete-user-dialog">取消</button>
         <button type="button" id="confirm-delete-user" class="danger-button">确认删除用户及其全部实例</button></div>
     </dialog>

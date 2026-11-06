@@ -211,6 +211,7 @@ class Engine:
                         self.db,
                         options["user_binding"],
                         options.get("user_nickname", ""),
+                        issue_token=options.get("_issue_user_token", True),
                     )
                 )
             if game.get("user_binding", {}).get("type") == "umo":
@@ -218,6 +219,16 @@ class Engine:
             if game.get("owner_id"):
                 from ..users.policy import for_user, notice_defaults
 
+                templates = options.get("_role_settings")
+                if templates and not self.db.execute(
+                    "SELECT 1 FROM sim_user_policy WHERE user_id=?", (game["owner_id"],)
+                ).fetchone():
+                    main = options.get("_main_user_id") or game["owner_id"]
+                    template = templates["main" if game["owner_id"] == main else "others"]
+                    self.db.execute("INSERT INTO sim_user_policy VALUES(?,?)",
+                                    (game["owner_id"], dump(template["policy"])))
+                    self.db.execute("INSERT OR REPLACE INTO sim_user_notice_defaults VALUES(?,?)",
+                                    (game["owner_id"], dump(template["notifications"])))
                 user_policy = for_user(self.db, game["owner_id"])
                 limit = user_policy["max_instances"]
                 count = self.db.execute(

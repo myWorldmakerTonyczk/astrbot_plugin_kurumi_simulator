@@ -1798,3 +1798,16 @@ input[type="checkbox"]:disabled { opacity: .55; cursor: default; }
   input[type="checkbox"] { appearance: auto; }
   input[type="checkbox"]::before { content: none; }
 }
+
+#workspace-role-settings { margin: 14px 0 24px; }
+.role-settings-grid { display: grid; grid-template-columns: minmax(8rem, 1.25fr) repeat(2, minmax(0, 1fr)); align-items: center; border: 1px solid var(--line); border-radius: 9px; }
+.role-settings-grid > * { min-width: 0; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+.role-settings-grid > :is(strong, span:first-child) { background: #f3edf5; }
+.role-setting-cell input:not([type="checkbox"]) { width: 100%; min-width: 0; }
+#workspace-role-settings[data-single="true"] .role-settings-grid { grid-template-columns: minmax(8rem, 1.25fr) minmax(0, 1fr); }
+#workspace-role-settings[data-single="true"] [data-role="others"] { display: none; }
+.managed-user-group + .managed-user-group { margin-top: 20px; }
+@media (max-width: 560px) {
+  .role-settings-grid { grid-template-columns: minmax(5.5rem, 1.05fr) repeat(2, minmax(0, 1fr)); }
+  .role-settings-grid > * { padding: 6px; font-size: .8rem; }
+}

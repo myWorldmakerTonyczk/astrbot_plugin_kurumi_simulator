@@ -78,7 +78,7 @@ async def check():
         if expected == 200:
             data = json.loads(result.body)
             assert data["games"] == []
-            assert data["workspace"]["mode"] == {"multiplayer": False, "main_user_id": ""}
+            assert data["workspace"]["mode"] == {"multiplayer": False, "main_user_id": "", "role_settings": None}
             assert "market_key" not in data["connection"]
 
     async def post(handler, body, username="admin"):
@@ -206,7 +206,7 @@ async def check():
     # Missing/unknown personas must fail without creating games or users.
     before_games = len(plugin.engine.games())
     for persona in (None, "", "deleted-persona"):
-        invalid = await post(plugin.web_command, {"action": "create", "options": {"user_binding": {"type": "random", "values": []}, "persona": persona}})
+        invalid = await post(plugin.web_command, {"action": "create", "options": {"user_binding": {"type": "umo", "values": ["test:FriendMessage:123456"]}, "persona": persona}})
         assert invalid.status_code == 400
     assert len(plugin.engine.games()) == before_games
     values = plugin.settings()
@@ -219,8 +219,8 @@ async def check():
             "options": {
                 "persona": "test",
                 "user_binding": {
-                    "type": "random",
-                    "values": [],
+                    "type": "umo",
+                    "values": ["test:FriendMessage:123456"],
                 }
             },
         },
@@ -228,6 +228,7 @@ async def check():
     assert response.status_code == 200
     owned = json.loads(response.body)
     assert owned["auto"] is True and owned["persona"] == "test"
+    assert plugin.engine.users()[0]["public_id"] is None
     invalid = await post(plugin.web_command, {"action": "bind", "game": owned["id"], "persona": "", "auto": False})
     assert invalid.status_code == 400
     # An instance request cannot bypass the administrator-owned interval lock.
@@ -260,7 +261,21 @@ async def check():
     denied_notice=await post(plugin.web_command,{"action":"notifications","game":owned["id"],"settings":{"enabled":False}})
     assert denied_notice.status_code==400
     assert owned["owner_name"] == "用户1"
-    assert owned["user_binding"] == {"type": "random", "values": []}
+    assert owned["user_binding"] == {"type": "umo", "values": ["test:FriendMessage:123456"]}
+    assert (await post(plugin.web_command, {"action":"create","options":{"persona":"test","user_binding":{"type":"random","values":[]}}})).status_code == 400
+    templates = {
+        "main": {"policy": dict(user["policy"], interval=1800), "notifications": user["notifications"]},
+        "others": {"policy": dict(user["policy"], interval=2700), "notifications": user["notifications"]},
+    }
+    assert (await post(plugin.web_command, {"action":"workspace_mode","multiplayer":True,
+                   "main_user_id":user["id"],"role_settings":templates})).status_code == 200
+    assert plugin.engine.get(owned["id"])["interval"] == 1800
+    assert (await post(plugin.web_command, {"action":"update_user_umo","user_id":user["id"],
+                   "umos":["test:FriendMessage:777777"]})).status_code == 200
+    extra = await post(plugin.web_command, {"action":"create","options":{"persona":"test","auto":False,
+                       "user_binding":{"type":"umo","values":["test:FriendMessage:888888"]}}})
+    assert extra.status_code == 200 and json.loads(extra.body)["interval"] == 2700
+    plugin.engine.delete(json.loads(extra.body)["id"])
     denied = await post(
         plugin.web_command, {"action": "delete", "game": owned["id"]}, None
     )

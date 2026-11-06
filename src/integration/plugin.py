@@ -19,7 +19,7 @@ from .diary_api import DiaryApiMixin
 from .settings_api import SettingsApiMixin
 from .portal_api import PortalApiMixin
 from ..portal.server import Portal, settings as portal_settings
-from ..users import policy
+from ..users import ownership, policy
 from ..agent import llm
 from ..notifications.service import NotificationService
 
@@ -213,7 +213,8 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
         main = saved.get("main_user_id")
         if main not in ids:
             main = next((user["id"] for user in users if user["instances"]), users[0]["id"] if users else "")
-        return dict(multiplayer=saved.get("multiplayer", False), main_user_id=main)
+        return dict(multiplayer=saved.get("multiplayer", False), main_user_id=main,
+                    role_settings=saved.get("role_settings"))
 
     async def web_state(self):
         if not self.authorized():
@@ -235,7 +236,7 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                 games=games,
                 missing_instance=bool(gid) and not exists,
                 workspace=dict(
-                    users=users,
+                    users=[{key: value for key, value in user.items() if key != "public_id"} for user in users],
                     mode=self.workspace_mode(users),
                     ownership_enforced=True,
                     dashboard_admin=True,
@@ -291,11 +292,16 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                 return json_response(self.engine.update_pairs(body["game"], body.get("pairs")))
             if body.get("action") == "create":
                 options = body.get("options", {})
-                if not isinstance(options, dict) or "user_binding" not in options:
-                    raise ValueError(
-                        "绑定用户为必填，请填写QQ号、完整会话UMO列表或选择随机用户ID"
-                    )
+                if not isinstance(options, dict):
+                    raise ValueError("实例设置须为对象")
                 options = dict(options)
+                mode = self.workspace_mode(self.engine.users())
+                options["_role_settings"] = mode["role_settings"]
+                options["_main_user_id"] = mode["main_user_id"]
+                options["_issue_user_token"] = False
+                binding = options.get("user_binding")
+                if not isinstance(binding, dict) or binding.get("type") != "umo":
+                    raise ValueError("新建实例只能使用私聊 UMO 绑定")
                 options["persona"] = await self.validate_persona(options.get("persona"))
                 options.setdefault("auto", True)
                 if type(options["auto"]) is not bool:
@@ -313,15 +319,43 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                     ):
                         raise ValueError("请选择有效的主用户")
                     saved = self.settings()
-                    saved["workspace_mode"] = dict(multiplayer=multiplayer, main_user_id=main)
+                    prior = saved.get("workspace_mode", {})
+                    templates = body.get("role_settings", prior.get("role_settings"))
+                    if templates is not None:
+                        if not isinstance(templates, dict) or set(templates) != {"main", "others"}:
+                            raise ValueError("请同时提供主用户和其他用户的设置")
+                        if any(not isinstance(value, dict) or set(value) != {"policy", "notifications"} for value in templates.values()):
+                            raise ValueError("角色权限或通知设置字段无效")
+                        templates = {
+                            role: dict(policy=policy.validate(values["policy"]),
+                                       notifications=policy.notification_settings(values["notifications"]))
+                            for role, values in templates.items()
+                        }
+                        previous_main = self.workspace_mode(users)["main_user_id"]
+                        for user in users:
+                            uid = user["id"]
+                            role = "main" if uid == main else "others"
+                            if templates[role] != (prior.get("role_settings") or {}).get(role) or (uid == main) != (uid == previous_main):
+                                values = templates[role]
+                                policy.apply(self.engine, uid, user["name"], values["policy"], values["notifications"])
+                    saved["workspace_mode"] = dict(multiplayer=multiplayer, main_user_id=main, role_settings=templates)
                     self.engine.db.execute(
                         "INSERT OR REPLACE INTO settings VALUES(1,?)", (dump(saved),)
                     )
                 return json_response({"ok": True})
-            if body.get("action") == "create_user":
-                return json_response(
-                    self.engine.create_virtual_user(body.get("nickname", ""))
-                )
+            if body.get("action") == "update_user_umo":
+                uid = str(body.get("user_id", ""))
+                binding = ownership.normalize(dict(type="umo", values=body.get("umos")))
+                with self.engine.transaction():
+                    if not self.engine.db.execute("SELECT 1 FROM sim_users WHERE id=?", (uid,)).fetchone():
+                        raise ValueError("用户不存在")
+                    for umo in binding["values"]:
+                        alias = "umo:" + umo
+                        row = self.engine.db.execute("SELECT user_id FROM sim_user_aliases WHERE alias=?", (alias,)).fetchone()
+                        if row and row[0] != uid:
+                            raise ValueError("此 UMO 已绑定其他用户")
+                        self.engine.db.execute("INSERT OR IGNORE INTO sim_user_aliases VALUES(?,?)", (alias, uid))
+                return json_response({"ok": True})
             if body.get("action") == "delete_user":
                 return json_response(
                     self.engine.delete_virtual_user(str(body.get("user_id", "")))
@@ -341,10 +375,6 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                     policy.change_notices(
                         self, body["game"], body.get("settings"), "human"
                     )
-                )
-            if body.get("action") == "rotate_user_id":
-                return json_response(
-                    self.engine.rotate_user_id(str(body.get("user_id", "")))
                 )
             if body.get("action") == "delete":
                 return json_response(self.engine.delete(body["game"]))

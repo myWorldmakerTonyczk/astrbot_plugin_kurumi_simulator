@@ -101,7 +101,7 @@ js = """window.fixture=FIXTURE;window.AstrBotPluginView={
  if(endpoint==='decision'){window.fixture.decision={state:'pending',next_allowed:Date.now()/1000,last_summary:'',error:''};return {ok:true,message:'看盘任务已排队'};}
  if(endpoint==='decision-settings'){window.fixture.decision_limits=body;return {ok:true};}
  if(endpoint==='llm-settings'){window.fixture.llm_settings={...body,key_configured:!!body.api_key,headers_configured:!!body.headers};delete window.fixture.llm_settings.api_key;delete window.fixture.llm_settings.headers;return {ok:true};}
- if(endpoint==='command'&&body.action==='workspace_mode'){window.fixture.workspace.mode={multiplayer:body.multiplayer,main_user_id:body.main_user_id};return {ok:true};}
+ if(endpoint==='command'&&body.action==='workspace_mode'){window.fixture.workspace.mode={multiplayer:body.multiplayer,main_user_id:body.main_user_id,role_settings:body.role_settings||window.fixture.workspace.mode.role_settings};return {ok:true};}
  if(endpoint==='command'&&body.action==='delete_user'){window.fixture.workspace.users=window.fixture.workspace.users.filter(u=>u.id!==body.user_id);window.fixture.games=window.fixture.games.filter(g=>g.owner_id!==body.user_id);return {ok:true};}
  if(endpoint==='command'&&body.action==='update_user'){const u=window.fixture.workspace.users.find(u=>u.id===body.user_id);u.name=body.nickname;u.policy=body.policy;u.notifications=body.notifications;return {ok:true};}
  if(endpoint==='command'&&body.action==='notifications'){window.fixture.instance_access.notifications=body.settings;return {ok:true};}
@@ -332,28 +332,15 @@ with sync_playwright() as p:
     assert page.locator("#create").is_hidden()
     assert page.locator("#connection").is_hidden()
     assert page.locator("#access-scaffold").is_visible()
-    page.locator("#new-user-nickname").fill("测试虚拟用户")
-    page.locator("#generate-user-id").click()
-    page.wait_for_selector("#managed-users .managed-user")
-    assert not page.locator("#managed-users .managed-user").first.evaluate("el=>el.open")
-    page.locator("#managed-users .managed-user > summary").first.click()
-    old_id = page.locator("#managed-users code").first.inner_text()
-    page.locator("#managed-users button").first.click()
-    page.wait_for_selector("#rotate-user-dialog[open]")
-    page.locator("#confirm-rotate-user").click()
-    page.wait_for_function(
-        "(old)=>document.querySelector(`#managed-users code`).textContent!==old",
-        arg=old_id,
-    )
-    assert page.locator("#managed-users strong").first.inner_text() == "测试虚拟用户"
-    manager=page.locator("#managed-users .managed-user").first
-    manager.locator('input[name=nickname]').fill("")
-    assert manager.locator('input[name=nickname]').locator('..').locator('.required-indicator').is_visible()
+    page.evaluate("window.fixture.workspace.users=[{id:'managed-user',name:'测试用户',bindings:[{type:'umo',value:'default:FriendMessage:123456789'}]}]")
+    page.locator("#refresh").click()
+    manager = page.locator("#managed-users .managed-user").first
+    manager.wait_for()
+    assert page.locator("#generate-user-id").count() == 0
+    manager.locator("summary").click()
     manager.locator('input[name=nickname]').fill("改过的名字")
-    assert manager.locator('input[name=nickname]').locator('..').locator('.required-indicator').is_hidden()
     page.get_by_role("button", name="保存设置", exact=True).click()
     page.wait_for_function("document.querySelector('#managed-users strong').textContent==='改过的名字'")
-    assert page.locator("#managed-users code").first.inner_text() != old_id
 
     assert page.locator("#binding").is_hidden()
     assert page.locator("header #back-to-catalog").count() == 1
@@ -609,11 +596,11 @@ with sync_playwright() as p:
     page.locator('[data-settings-tab="users"]').click()
     mode = page.locator("#workspace-mode-settings")
     mode.locator('[name="multiplayer"]').uncheck()
-    assert page.locator("#multi-user-controls").is_hidden()
+    assert page.locator("#workspace-role-settings [data-role=others]").first.is_hidden()
     assert page.evaluate("window.fixture.workspace.mode.multiplayer") is True
     page.get_by_role("button", name="保存设置", exact=True).click()
     page.wait_for_function("window.fixture.workspace.mode.multiplayer === false")
-    assert page.locator("#multi-user-controls").is_hidden()
+    assert page.locator("#workspace-role-settings [data-role=others]").first.is_hidden()
     assert "主用户" in page.locator("#managed-users").inner_text()
     assert page.locator("#managed-users .managed-user").count() == 1
     page.locator("#back-to-catalog").click()
@@ -622,10 +609,15 @@ with sync_playwright() as p:
     page.get_by_role("button", name="设置", exact=True).click()
     page.locator('[data-settings-tab="users"]').click()
     mode.locator('[name="multiplayer"]').check()
+    page.get_by_label("主用户 默认看盘间隔（分钟）", exact=True).fill("30")
+    page.get_by_label("其他用户 默认看盘间隔（分钟）", exact=True).fill("45")
     page.get_by_role("button", name="保存设置", exact=True).click()
     page.wait_for_function("window.fixture.workspace.mode.multiplayer === true")
+    assert page.evaluate("window.fixture.workspace.mode.role_settings.main.policy.interval") == 1800
+    assert page.evaluate("window.fixture.workspace.mode.role_settings.others.policy.interval") == 2700
     page.locator("#back-to-catalog").click()
     assert page.locator("#instance-directory .instance-card").count() == 3
+    assert page.locator("#workspace-role-settings [data-role=others]").count() > 1
     alice = page.locator(".user-instance-group[data-owner-id=alice]")
     assert alice.locator(".instance-card").count() == 2
     alice.locator("summary").click()
@@ -719,7 +711,7 @@ with sync_playwright() as p:
     assert page.locator('.instance-card[data-instance-id="bob-one"]').count() == 0
     page.evaluate(
         "window.fixture.games=[];window.fixture.current=null;window.instanceSnapshots={};"
-        "window.fixture.workspace={mode:{multiplayer:true,main_user_id:'managed-user'},users:[{id:'managed-user',name:'测试用户',public_id:'krm_11111111111111111111'}]}"
+        "window.fixture.workspace={mode:{multiplayer:true,main_user_id:'managed-user'},users:[{id:'managed-user',name:'测试用户',bindings:[{type:'umo',value:'default:FriendMessage:123456789'}]}]}"
     )
     page.locator("#refresh").click()
     page.wait_for_selector("#empty:not([hidden])")

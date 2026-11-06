@@ -77,44 +77,48 @@ def update(engine, uid, nickname, values, notices):
     values = validate(values)
     notices = notification_settings(notices)
     with engine.transaction():
-        if not engine.db.execute(
-            "SELECT 1 FROM sim_users WHERE id=?", (uid,)
-        ).fetchone():
-            raise ValueError("用户不存在")
-        previous = for_user(engine.db, uid)
-        previous_notices = notice_defaults(engine.db, uid)
-        engine.db.execute(
-            "UPDATE sim_users SET nickname=? WHERE id=?", (nickname.strip(), uid)
-        )
-        engine.db.execute(
-            "INSERT OR REPLACE INTO sim_user_policy VALUES(?,?)",
-            (uid, json.dumps(values)),
-        )
-        engine.db.execute(
-            "INSERT OR REPLACE INTO sim_user_notice_defaults VALUES(?,?)",
-            (uid, json.dumps(notices)),
-        )
-        for game in engine.games():
-            if game.get("owner_id") != uid:
-                continue
-            game["owner_name"] = nickname.strip()
-            if (
-                not values["allow_custom_interval"]
-                or previous["interval"] != values["interval"]
-            ):
-                game["interval"] = values["interval"]
-            if notices != previous_notices:
-                game["notifications"] = notices
-            game["action_revision"] = game.get("action_revision", 0) + 1
-            engine.save(game)
-            engine.log(
-                game,
-                "human",
-                "bind",
-                "管理员修改用户名称、自动分析权限或主动汇报设置",
-                {},
-            )
+        apply(engine, uid, nickname.strip(), values, notices)
     return dict(ok=True)
+
+
+def apply(engine, uid, nickname, values, notices):
+    if not engine.db.execute(
+        "SELECT 1 FROM sim_users WHERE id=?", (uid,)
+    ).fetchone():
+        raise ValueError("用户不存在")
+    previous = for_user(engine.db, uid)
+    previous_notices = notice_defaults(engine.db, uid)
+    engine.db.execute(
+        "UPDATE sim_users SET nickname=? WHERE id=?", (nickname.strip(), uid)
+    )
+    engine.db.execute(
+        "INSERT OR REPLACE INTO sim_user_policy VALUES(?,?)",
+        (uid, json.dumps(values)),
+    )
+    engine.db.execute(
+        "INSERT OR REPLACE INTO sim_user_notice_defaults VALUES(?,?)",
+        (uid, json.dumps(notices)),
+    )
+    for game in engine.games():
+        if game.get("owner_id") != uid:
+            continue
+        game["owner_name"] = nickname.strip()
+        if (
+            not values["allow_custom_interval"]
+            or previous["interval"] != values["interval"]
+        ):
+            game["interval"] = values["interval"]
+        if notices != previous_notices:
+            game["notifications"] = notices
+        game["action_revision"] = game.get("action_revision", 0) + 1
+        engine.save(game)
+        engine.log(
+            game,
+            "human",
+            "bind",
+            "管理员修改用户名称、自动分析权限或主动汇报设置",
+            {},
+        )
 
 
 def change_notices(plugin, gid, changes, source):

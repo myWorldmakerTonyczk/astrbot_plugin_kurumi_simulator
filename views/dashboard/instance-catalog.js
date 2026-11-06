@@ -6,7 +6,6 @@ export function instanceGroups(games, users = []) {
       {
         id: String(u.id),
         name: u.name || String(u.id),
-        publicId: u.public_id,
         instances: [],
       },
     ]),
@@ -67,10 +66,8 @@ export function renderInstanceDirectory(
       make("strong", group.name + (group.id === mainUserId ? " · 主用户" : "")),
       make("small", `${group.instances.length} 个交易实例`),
     );
-    if (group.publicId)
-      copy.append(make("code", group.publicId, "user-public-id"));
     heading.append(avatar, copy);
-    if (group.publicId) {
+    if (group.id !== "unassigned") {
       const create = make("button", "新增实例", "user-create-instance");
       create.type = "button";
       create.setAttribute("aria-label", `为 ${group.name} 新增实例`);

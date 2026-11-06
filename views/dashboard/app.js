@@ -16,11 +16,6 @@ const diaryPanel = new DiaryPanel(bridge);
 const replayPanel = new ReplayPanel(document.getElementById("replay"), (game, options) =>
   bridge.apiGet("review", {game, ...options}));
 const userManager = new UserManager(post, (user) => {
-  rotatingUser = user;
-  $("rotate-user-name").textContent = `为「${user.name}」生成新ID？`;
-  $("rotate-user-dialog").showModal();
-  tradingNotices.setScope("");
-}, (user) => {
   deletingUser=user;
   $("delete-user-description").textContent=`删除「${user.name}」及其 ${user.instances?.length||0} 个交易实例？`;
   $("delete-user-dialog").showModal();tradingNotices.setScope("");
@@ -193,7 +188,7 @@ function workspaceUsers() {
   const users = state?.workspace?.users || [];
   const mode = state?.workspace?.mode || {multiplayer: false, main_user_id: users[0]?.id || ""};
   if (modeSettingsDirty) {
-    return {users, multiplayer: modeForm.elements.multiplayer.checked, main_user_id: modeForm.elements.main_user_id.value};
+    return {users, ...mode, multiplayer: modeForm.elements.multiplayer.checked, main_user_id: modeForm.elements.main_user_id.value};
   }
   return {users, ...mode};
 }
@@ -941,7 +936,6 @@ $("confirm-delete-instance").onclick = async () => {
     $("confirm-delete-instance").disabled = false;
   }
 };
-let rotatingUser = null;
 let deletingUser = null;
 let modeSettingsDirty = false;
 const modeForm = $("workspace-mode-settings");
@@ -957,8 +951,10 @@ submit("workspace-mode-settings", async fields => {
     action: "workspace_mode",
     multiplayer: modeForm.elements.multiplayer.checked,
     main_user_id: fields.main_user_id || "",
+    ...(userManager.roleDirty ? {role_settings: userManager.roleValues()} : {}),
   });
   modeSettingsDirty = false;
+  userManager.roleDirty = false;
   await load();
   $("workspace-save-status").textContent = "已保存";
 });
@@ -968,38 +964,20 @@ function renderManagedUsers() {
     modeForm.elements.multiplayer.checked = multiplayer;
     options(modeForm.elements.main_user_id, users.length ? users : [{id: "", name: "新建实例后自动设为主用户"}], main_user_id);
   }
-  $("multi-user-controls").hidden = !multiplayer;
+  userManager.renderRoles(workspaceUsers(), users);
   userManager.render(multiplayer ? users : users.filter(user => user.id === main_user_id), main_user_id, multiplayer);
 }
-$("generate-user-id").onclick = async () => {
-  try {
-    await post("command", {
-      action: "create_user",
-      nickname: $("new-user-nickname").value,
-    });
-    $("new-user-nickname").value = "";
-    await load();
-  } catch {}
-};
-$("confirm-rotate-user").onclick = async () => {
-  if (!rotatingUser) return;
-  try {
-    await post("command", {
-      action: "rotate_user_id",
-      user_id: rotatingUser.id,
-    });
-    $("rotate-user-dialog").close();
-    rotatingUser = null;
-    await load();
-  } catch {}
-};
 let createOwnerBinding = null;
 function openCreateInstance(group = null) {
   const {users, multiplayer, main_user_id} = workspaceUsers();
   const ownerId = group?.id || (!multiplayer && main_user_id);
   const user = users.find(item => String(item.id) === ownerId);
-  const binding = user?.bindings?.find(item => item.type === "umo") || user?.bindings?.find(item => item.type === "qq");
-  createOwnerBinding = user ? (binding ? {type: binding.type, values: [binding.value]} : {type: "random", values: [user.public_id]}) : null;
+  const binding = user?.bindings?.find(item => item.type === "umo");
+  if (user && !binding) {
+    message("请先在用户与权限中为该用户添加私聊 UMO。", true);
+    return;
+  }
+  createOwnerBinding = binding ? {type: "umo", values: [binding.value]} : null;
   $("create-user-fields").hidden = !!user;
   $("create-user-fields").disabled = !!user;
   $("create-owner").hidden = !user;
@@ -1017,7 +995,6 @@ for (const id of [
   "create-instance-dialog",
   "instance-settings-dialog",
   "delete-instance-dialog",
-  "rotate-user-dialog",
   "delete-user-dialog",
 ])
   $(id).addEventListener("close", () => workspace(workspaceMode));

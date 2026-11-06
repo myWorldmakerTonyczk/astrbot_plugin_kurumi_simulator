@@ -93,7 +93,7 @@ def owner_for_token(db, token):
     return row[0]
 
 
-def resolve(db, binding, nickname=""):
+def resolve(db, binding, nickname="", *, issue_token=True):
     binding = normalize(binding)
     if (
         not isinstance(nickname, str)
@@ -130,7 +130,8 @@ def resolve(db, binding, nickname=""):
         uid = uuid.uuid4().hex
         name = nickname.strip() or f"用户{ordinal}"
         db.execute("INSERT INTO sim_users VALUES(?,?,?)", (uid, name, ordinal))
-        issue_id(db, uid)
+        if issue_token:
+            issue_id(db, uid)
     for alias in aliases:
         db.execute("INSERT OR IGNORE INTO sim_user_aliases VALUES(?,?)", (alias, uid))
     if binding["type"] == "random":
@@ -141,7 +142,7 @@ def resolve(db, binding, nickname=""):
 def users(db):
     people = []
     for row in db.execute(
-        "SELECT u.id,u.nickname,t.token FROM sim_users u JOIN sim_user_tokens t ON t.user_id=u.id ORDER BY ordinal"
+        "SELECT u.id,u.nickname,t.token FROM sim_users u LEFT JOIN sim_user_tokens t ON t.user_id=u.id ORDER BY ordinal"
     ):
         aliases = [
             dict(type=r[0].split(":", 1)[0], value=r[0].split(":", 1)[1])
