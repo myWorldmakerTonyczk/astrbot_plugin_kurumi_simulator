@@ -1,3 +1,4 @@
+import { JournalPanel } from "./journal-panel.js";
 import { renderNotebookText } from "./notebook.js";
 import { refreshRequired } from "./required-fields.js";
 import { UserManager } from "./user-manager.js";
@@ -85,7 +86,11 @@ const labels = {
   end: "本局结束",
   protect: "修改止盈止损",
   margin_call: "保证金不足提醒",
+  analysis: "看盘摘要",
+  update_pairs: "调整货币对",
+  market_source: "切换行情来源",
 };
+const journalPanel = new JournalPanel(bridge, labels, pairLabel);
 function message(text, error = false) {
   $("notice").textContent = text;
   $("notice").classList.toggle("error", error);
@@ -355,7 +360,7 @@ function render() {
   refreshRequired();
   if (!selected) {
     $("mood-scene").src = "./assets/neutral.png";
-    journal($("logs"), []);
+    journalPanel.update("", [], []);
     return;
   }
   const g = selected.game,
@@ -407,7 +412,7 @@ function render() {
     state.pairs.includes(pair) ? pair : g.pairs[0],
   );
   options($("trade-pair"), g.pairs, $("trade-pair").value || g.pairs[0]);
-  journal($("logs"), selected.logs);
+  journalPanel.update(gid, [...new Set([...g.pairs, ...state.pairs])], selected.logs);
   journal($("recent"), selected.logs.slice(0, 4));
   renderNotebookText($("plan"), g.plan || "尚无计划");
   $("notes").textContent = g.notes || "尚无经验笔记";

@@ -11,7 +11,7 @@ JOURNAL_FIELDS = dict(
     page_size=dict(type="integer", minimum=1, maximum=50, description="每页条数，默认20"),
     pages=dict(type="integer", minimum=1, maximum=5, description="连续返回几页，合计最多100条"),
     sort=dict(type="string", enum=["newest", "oldest", "action"], description="最新优先（默认）、最早优先或按操作类型归组"),
-    filter=dict(type="string", enum=["all", "operations", "fills"], description="全部、仅实际操作（含保护线和资金变动）或仅成交"),
+    filter=dict(type="string", enum=["all", "operations", "fills", "rejected"], description="全部、仅实际操作（含保护线和资金变动）、仅成交或未执行"),
     source=dict(type="string", enum=["all", "ai", "human", "system"], description="按执行者筛选"),
     include_text=dict(type="boolean", description="是否附上完整计划和分析正文，默认只返回摘要"),
     before=dict(type="integer", minimum=0, description="可选日志ID上界，用于固定翻页范围"),
@@ -44,7 +44,7 @@ def journal(engine, gid, *, pair="", page=1, page_size=20, pages=1,
         raise ValueError("日志分页参数无效，每次最多100条")
     orders = {"newest": "created DESC, seq DESC", "oldest": "created ASC, seq ASC",
               "action": "action ASC, created DESC, seq DESC"}
-    if sort not in orders or filter not in ("all", "operations", "fills") or source not in ("all", "ai", "human", "system"):
+    if sort not in orders or filter not in ("all", "operations", "fills", "rejected") or source not in ("all", "ai", "human", "system"):
         raise ValueError("日志排序或筛选无效")
     if not before:
         before = engine.db.execute("SELECT coalesce(max(seq),0)+1 FROM logs WHERE game=?", (gid,)).fetchone()[0]
@@ -56,7 +56,9 @@ def journal(engine, gid, *, pair="", page=1, page_size=20, pages=1,
     if source != "all":
         clauses.append("json_extract(data,'$.source')=?")
         params.append(source)
-    if filter != "all":
+    if filter == "rejected":
+        clauses.append("json_extract(data,'$.status')='rejected'")
+    elif filter != "all":
         clauses.append("json_extract(data,'$.status')='success'")
         actions = "'open','close'" if filter == "fills" else "'open','close','protect','deposit','borrow','repay','loan_config','update_pairs','pause','resume','end'"
         clauses.append(f"json_extract(data,'$.action') IN ({actions})")

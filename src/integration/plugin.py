@@ -7,6 +7,7 @@ from astrbot.api.web import request, json_response, error_response
 
 from ..core.engine import Engine, PAIRS, dump
 from ..core.replay import review
+from ..core.journal import journal
 from ..market_data.market import Market, probe, signature, market_error
 from ..market_data.settings import merge_settings, public_settings
 from ..agent.decisions import DecisionService
@@ -50,6 +51,7 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
         for route, handler, methods in (
             ("state", self.web_state, ["GET"]),
             ("review", self.web_review, ["GET"]),
+            ("journal", self.web_journal, ["GET"]),
             ("portal-settings", self.web_portal_settings, ["POST"]),
             ("decision-settings", self.web_decision_settings, ["POST"]),
             ("llm-settings", self.web_llm_settings, ["POST"]),
@@ -178,6 +180,21 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
             return error_response(
                 "历史行情获取失败，请检查来源连接后重试", status_code=400
             )
+
+    async def web_journal(self):
+        if not self.authorized():
+            return error_response("需要 AstrBot 登录", status_code=401)
+        try:
+            gid = request.query.get("game", "")
+            self.engine.get(gid)
+            return json_response(journal(
+                self.engine, gid, page=int(request.query.get("page", 1)),
+                before=int(request.query.get("before", 0)), include_text=True,
+                pair=request.query.get("pair", ""), source=request.query.get("source", "all"),
+                filter=request.query.get("filter", "all"), sort=request.query.get("sort", "newest"),
+            ))
+        except (ValueError, TypeError) as exc:
+            return error_response(str(exc), status_code=400)
 
     async def web_review(self):
         if not self.authorized():

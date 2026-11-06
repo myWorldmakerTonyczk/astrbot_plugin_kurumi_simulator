@@ -415,7 +415,19 @@
             <h3>统一交易日志</h3>
             <p>AI、人类和系统，共同写下的账户时间线。</p>
           </div>
-          <div id="logs" class="panel"></div>
+          <form id="journal-filters" class="panel journal-filters">
+            <label>操作<select name="filter"><option value="all">全部记录</option><option value="operations">实际操作</option><option value="fills">仅成交</option><option value="rejected">未执行</option></select></label>
+            <label>执行者<select name="source"><option value="all">所有执行者</option><option value="ai">AI</option><option value="human">人类</option><option value="system">系统</option></select></label>
+            <label>货币对<select name="pair"><option value="">所有品种</option></select></label>
+            <label>排序<select name="sort"><option value="newest">最新优先</option><option value="oldest">最早优先</option></select></label>
+            <button type="reset">重置筛选</button>
+          </form>
+          <div id="logs" class="panel journal-feed"></div>
+          <div id="journal-pagination" class="journal-pagination">
+            <button id="journal-prev" type="button">上一页</button>
+            <p id="journal-status" role="status"></p>
+            <button id="journal-next" type="button">下一页</button>
+          </div>
         </section>
         <section data-page="memory" hidden>
           <div class="memory-intro">
