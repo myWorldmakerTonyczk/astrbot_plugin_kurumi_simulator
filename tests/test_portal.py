@@ -177,6 +177,7 @@ class PortalTests(unittest.IsolatedAsyncioTestCase):
         await self.portal.accounts.set_password(owner, "new-test-password")
         old = await self.client.get("/api/account", params={"game": self.first["id"]}, headers={"Cookie": f"{COOKIE}={old_session}"})
         self.assertEqual(old.status, 401)
+        self.assertEqual(self.portal.accounts.admin_password(owner), "new-test-password")
         self.assertIsNone(await self.portal.accounts.login(username, old_password))
         self.assertTrue(await self.portal.accounts.login(username, "new-test-password"))
 

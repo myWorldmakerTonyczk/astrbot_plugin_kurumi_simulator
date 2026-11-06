@@ -27,7 +27,8 @@ class PortalAccounts:
         self.db.executescript("""
         CREATE TABLE IF NOT EXISTS portal_accounts(
           owner TEXT PRIMARY KEY REFERENCES sim_users(id) ON DELETE CASCADE,
-          username TEXT UNIQUE NOT NULL, salt BLOB NOT NULL, verifier BLOB NOT NULL);
+          username TEXT UNIQUE NOT NULL, salt BLOB NOT NULL, verifier BLOB NOT NULL,
+          admin_password TEXT);
         CREATE TABLE IF NOT EXISTS portal_trade(
           game TEXT PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
           owner TEXT NOT NULL REFERENCES sim_users(id) ON DELETE CASCADE);
@@ -35,6 +36,10 @@ class PortalAccounts:
           umo TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES sim_users(id) ON DELETE CASCADE);
         CREATE INDEX IF NOT EXISTS portal_chat_owner ON portal_chat(owner);
         """)
+
+        columns = {row["name"] for row in self.db.execute("PRAGMA table_info(portal_accounts)")}
+        if "admin_password" not in columns:
+            self.db.execute("ALTER TABLE portal_accounts ADD COLUMN admin_password TEXT")
 
         with self.access.engine.transaction():
             owners = self.db.execute("SELECT owner FROM portal_accounts").fetchall()
@@ -76,6 +81,10 @@ class PortalAccounts:
         row = self.db.execute("SELECT username FROM portal_accounts WHERE owner=?", (owner,)).fetchone()
         return row[0] if row else ""
 
+    def admin_password(self, owner):
+        row = self.db.execute("SELECT admin_password FROM portal_accounts WHERE owner=?", (owner,)).fetchone()
+        return row[0] if row else None
+
     def has_games(self, owner):
         return bool(self.db.execute(
             "SELECT 1 FROM games WHERE json_extract(data,'$.owner_id')=? LIMIT 1", (owner,)
@@ -103,9 +112,10 @@ class PortalAccounts:
             if self.bound_umo(owner) != username:
                 raise ValueError("用户绑定已变更，请刷新后重试")
             self.db.execute(
-                "INSERT INTO portal_accounts VALUES(?,?,?,?) ON CONFLICT(owner) DO UPDATE "
-                "SET username=excluded.username,salt=excluded.salt,verifier=excluded.verifier",
-                (owner, username, salt, verifier),
+                "INSERT INTO portal_accounts(owner,username,salt,verifier,admin_password) VALUES(?,?,?,?,?) "
+                "ON CONFLICT(owner) DO UPDATE SET username=excluded.username,salt=excluded.salt,"
+                "verifier=excluded.verifier,admin_password=excluded.admin_password",
+                (owner, username, salt, verifier, password),
             )
             self.db.execute("DELETE FROM portal_sessions WHERE owner=? AND mode='account'", (owner,))
         return username
@@ -135,8 +145,9 @@ class PortalAccounts:
         if not self.has_games(owner) or self.bound_umo(owner) != bound:
             raise ValueError("当前用户的绑定或实例访问已变更")
         inserted = self.db.execute(
-            "INSERT INTO portal_accounts VALUES(?,?,?,?) ON CONFLICT(owner) DO NOTHING",
-            (owner, username, salt, verifier),
+            "INSERT INTO portal_accounts(owner,username,salt,verifier,admin_password) VALUES(?,?,?,?,?) "
+            "ON CONFLICT(owner) DO NOTHING",
+            (owner, username, salt, verifier, password),
         ).rowcount
         return (username, password) if inserted else (self.username(owner), "")
 

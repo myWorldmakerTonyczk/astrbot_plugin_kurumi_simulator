@@ -1836,3 +1836,9 @@ input[type="checkbox"]:disabled { opacity: .55; cursor: default; }
   display: none !important;
 }
 [data-remote-workspace] [data-portal-prohibited="true"] { cursor: help; }
+
+.portal-login-username {
+  display: block; width: fit-content; max-width: 100%; margin-top: 6px;
+  padding: 6px 10px; border-radius: 6px; background: #eee4ef;
+  color: #55344f; font-size: 1rem; font-weight: 700; overflow-wrap: anywhere;
+}

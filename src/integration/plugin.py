@@ -237,7 +237,8 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                 missing_instance=bool(gid) and not exists,
                 workspace=dict(
                     users=[dict({key: value for key, value in user.items() if key != "public_id"},
-                                portal_username=self.portal.accounts.username(user["id"])) for user in users],
+                                portal_username=self.portal.accounts.username(user["id"]),
+                                portal_password=self.portal.accounts.admin_password(user["id"])) for user in users],
                     mode=self.workspace_mode(users),
                     ownership_enforced=True,
                     dashboard_admin=True,
