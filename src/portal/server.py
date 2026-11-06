@@ -91,15 +91,20 @@ class Portal(Operations):
     def public(self):
         return dict(self.config, active=self.runner is not None, error=self.error)
 
-    async def account_link(self, owner):
-        if self.runner is None or not self.config["enabled"]:
+    def require_listener(self):
+        if not self.config["enabled"]:
             raise ValueError("管理员尚未启用独立面板")
+        if self.runner is None:
+            detail = f"（{self.error}）" if self.error else ""
+            raise ValueError("独立面板已启用，但当前插件的监听未启动" + detail + "。请管理员检查面板状态。")
+
+    async def account_link(self, owner):
+        self.require_listener()
         username, password = await self.accounts.issue(owner)
         return self.config["origin"] + "/", username, password
 
     def link(self, owner, gid, mode):
-        if self.runner is None or not self.config["enabled"]:
-            raise ValueError("管理员尚未启用独立面板")
+        self.require_listener()
         return self.config["origin"] + "/#share=" + self.access.issue(owner, gid, mode)
 
     def app(self):

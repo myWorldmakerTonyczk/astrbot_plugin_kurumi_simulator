@@ -5,23 +5,24 @@ from ..portal.chat import chat_game, chat_owner
 from ._shared import build_tool
 
 NAME = "kurumi_send_panel"
-DESCRIPTION = "用户明确要面板时，向真实绑定的当前私聊发送只读链接、可分享摘要，或账号登录入口和首次凭据。账号密码不返回给模型。"
+DESCRIPTION = "用户要远程面板网址或登录入口时调用此工具，默认发送登录入口。明确要本人只读链接时用 read，要可分享复盘时用 summary。直接向已绑定私聊发送。"
 PARAMETERS = dict(
     type="object",
     properties=dict(
         mode=dict(type="string", enum=["read", "summary", "login"], description="read 本人只读；summary 可分享的图表摘要；login 账号登录"),
         instance_id=dict(type="string", description="可选，当前用户的实例 ID 或列表序号"),
     ),
-    required=["mode"],
     additionalProperties=False,
 )
 
 
 def build(plugin):
-    async def handler(event, mode, instance_id=""):
+    async def handler(event, mode="login", instance_id=""):
         from astrbot.api.event import MessageChain
 
         try:
+            if mode not in ("login", "read", "summary"):
+                raise ValueError("面板入口类型无效")
             owner = chat_owner(plugin, event)
             if mode == "login":
                 url, username, password = await plugin.portal.account_link(owner)
