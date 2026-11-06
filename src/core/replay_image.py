@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from PIL import Image, ImageDraw, ImageFont
 
 CHARTS = {
+    "overview": ("账户表现总览", "Account performance overview"),
     "candles": ("K 线与成交", "Candles and fills"),
     "equity": ("账户净值", "Account equity"),
     "return": ("资金调整后收益率", "Cash-flow-adjusted return"),
@@ -78,6 +79,16 @@ def series(data, kind):
 def render_png(data, kind):
     if kind not in CHARTS:
         raise ValueError("图表类型无效")
+    if kind == "overview":
+        panels = ("equity", "return", "drawdown")
+        image = Image.new("RGB", (1120, 645 * len(panels)), PAPER)
+        for index, panel in enumerate(panels):
+            with Image.open(BytesIO(render_png(data, panel))) as chart:
+                image.paste(chart, (0, 645 * index))
+        buffer = BytesIO()
+        image.save(buffer, format="PNG")
+        return buffer.getvalue()
+
     image = Image.new("RGB", (1120, 645), PAPER)
     draw = ImageDraw.Draw(image)
     (heading, body, small), zh = fonts()
@@ -92,7 +103,7 @@ def render_png(data, kind):
     points = series(data, kind) if kind != "candles" else []
     bars = data["candles"] if kind == "candles" else []
     start, end = data["start"], data["end"]
-    if points and kind in CURVES:
+    if points and (kind in CURVES or kind == "trades"):
         start, end = points[0][0], points[-1][0]
     axis_start, axis_end = (start, end) if start < end else (start - 60, end + 60)
     label(38, 25, CHARTS[kind][0 if zh else 1], heading)
