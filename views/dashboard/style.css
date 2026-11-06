@@ -1820,3 +1820,13 @@ input[type="checkbox"]:disabled { opacity: .55; cursor: default; }
 .managed-user[open] .managed-user-toggle::before { content: "▾ 收起"; }
 #workspace-primary-user .managed-user { padding: 14px; }
 #workspace-primary-user .managed-user form { margin: 12px 0; }
+
+#workspace-primary-user .managed-user { display: block; padding: 18px; border: 1px solid var(--line); border-radius: 14px; }
+#managed-users .managed-user form { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); gap: 12px; }
+#managed-users .managed-user form > label { min-width: 0; }
+#managed-users .managed-portal-account { grid-column: 1 / -1; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: #faf6fa; overflow-wrap: anywhere; }
+#managed-users .managed-portal-account input { max-width: 32rem; }
+#managed-users .managed-user-footer { display: flex; justify-content: flex-end; margin-top: 12px; }
+@media (max-width: 620px) { #managed-users .managed-user form { grid-template-columns: minmax(0, 1fr); } }
+
+.managed-user > .managed-user-heading { display: flex; }

@@ -274,6 +274,10 @@ async def check():
                    "umo":"test:FriendMessage:777777"})).status_code == 200
     assert [b["value"] for b in plugin.engine.users()[0]["bindings"]] == ["test:FriendMessage:777777"]
     assert plugin.engine.get(owned["id"])["reference_umo"] == "test:FriendMessage:777777"
+    assert (await post(plugin.web_command, {"action":"set_portal_password","user_id":user["id"],"password":"test-password"}, None)).status_code == 401
+    password = await post(plugin.web_command, {"action":"set_portal_password","user_id":user["id"],"password":"test-password"})
+    assert password.status_code == 200
+    assert json.loads(password.body) == {"ok": True, "username": "test:FriendMessage:777777"}
     extra = await post(plugin.web_command, {"action":"create","options":{"persona":"test","auto":False,
                        "user_binding":{"type":"umo","values":["test:FriendMessage:888888"]}}})
     assert extra.status_code == 200 and json.loads(extra.body)["interval"] == 2700

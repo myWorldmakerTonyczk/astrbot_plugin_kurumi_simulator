@@ -236,7 +236,8 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                 games=games,
                 missing_instance=bool(gid) and not exists,
                 workspace=dict(
-                    users=[{key: value for key, value in user.items() if key != "public_id"} for user in users],
+                    users=[dict({key: value for key, value in user.items() if key != "public_id"},
+                                portal_username=self.portal.accounts.username(user["id"])) for user in users],
                     mode=self.workspace_mode(users),
                     ownership_enforced=True,
                     dashboard_admin=True,
@@ -354,13 +355,15 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                     if not self.engine.db.execute("SELECT 1 FROM sim_users WHERE id=?", (uid,)).fetchone():
                         raise ValueError("用户不存在")
                     row = self.engine.db.execute("SELECT user_id FROM sim_user_aliases WHERE alias=?", (alias,)).fetchone()
-                    if row and row[0] != uid:
+                    portal_owner = self.portal.accounts.owner_for_umo(umo)
+                    if (row and row[0] != uid) or (portal_owner and portal_owner != uid):
                         raise ValueError("此 UMO 已绑定其他用户")
                     self.engine.db.execute(
                         "DELETE FROM sim_user_aliases WHERE user_id=? AND alias LIKE 'umo:%' AND alias<>?",
                         (uid, alias),
                     )
                     self.engine.db.execute("INSERT OR IGNORE INTO sim_user_aliases VALUES(?,?)", (alias, uid))
+                    self.portal.accounts.sync_username(uid, umo)
                     self.engine.db.execute("DELETE FROM sim_reference_grants WHERE user_id=? AND umo<>?", (uid, umo))
                     for game in self.engine.games():
                         if game.get("owner_id") != uid:
@@ -369,6 +372,11 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                         game["action_revision"] = game.get("action_revision", 0) + 1
                         self.engine.save(game)
                 return json_response({"ok": True})
+            if body.get("action") == "set_portal_password":
+                username = await self.portal.accounts.set_password(
+                    str(body.get("user_id", "")), body.get("password")
+                )
+                return json_response(dict(ok=True, username=username))
             if body.get("action") == "delete_user":
                 return json_response(
                     self.engine.delete_virtual_user(str(body.get("user_id", "")))

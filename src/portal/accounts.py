@@ -36,6 +36,13 @@ class PortalAccounts:
         CREATE INDEX IF NOT EXISTS portal_chat_owner ON portal_chat(owner);
         """)
 
+        with self.access.engine.transaction():
+            owners = self.db.execute("SELECT owner FROM portal_accounts").fetchall()
+            for row in owners:
+                umo = self.bound_umo(row["owner"])
+                if umo:
+                    self.sync_username(row["owner"], umo)
+
     def owner_for_umo(self, umo):
         row = self.db.execute("SELECT owner FROM portal_chat WHERE umo=?", (umo,)).fetchone()
         return row[0] if row else None
@@ -74,6 +81,43 @@ class PortalAccounts:
             "SELECT 1 FROM games WHERE json_extract(data,'$.owner_id')=? LIMIT 1", (owner,)
         ).fetchone())
 
+    def bound_umo(self, owner):
+        row = self.db.execute(
+            "SELECT substr(alias,5) FROM sim_user_aliases WHERE user_id=? AND alias LIKE 'umo:%' ORDER BY alias LIMIT 1",
+            (owner,),
+        ).fetchone()
+        return row[0] if row else ""
+
+    async def set_password(self, owner, password):
+        username = self.bound_umo(owner)
+        if not username:
+            raise ValueError("请先为用户绑定私聊 UMO")
+        if not isinstance(password, str) or not 8 <= len(password) <= 128:
+            raise ValueError("远程面板密码须为 8～128 个字符")
+        if self.hash_slots.locked():
+            raise ValueError("账号服务繁忙，请稍后再试")
+        salt = secrets.token_bytes(16)
+        async with self.hash_slots:
+            verifier = await asyncio.to_thread(password_hash, password, salt)
+        with self.access.engine.transaction():
+            if self.bound_umo(owner) != username:
+                raise ValueError("用户绑定已变更，请刷新后重试")
+            self.db.execute(
+                "INSERT INTO portal_accounts VALUES(?,?,?,?) ON CONFLICT(owner) DO UPDATE "
+                "SET username=excluded.username,salt=excluded.salt,verifier=excluded.verifier",
+                (owner, username, salt, verifier),
+            )
+            self.db.execute("DELETE FROM portal_sessions WHERE owner=? AND mode='account'", (owner,))
+        return username
+
+    def sync_username(self, owner, username):
+        changed = self.db.execute(
+            "UPDATE portal_accounts SET username=? WHERE owner=? AND username<>?",
+            (username, owner, username),
+        ).rowcount
+        if changed:
+            self.db.execute("DELETE FROM portal_sessions WHERE owner=? AND mode='account'", (owner,))
+
     async def issue(self, owner):
         if not self.has_games(owner):
             raise ValueError("当前用户还没有交易实例")
@@ -82,13 +126,14 @@ class PortalAccounts:
             return existing, ""
         if self.hash_slots.locked():
             raise ValueError("账号服务繁忙，请稍后再试")
-        username = "krm-user-" + secrets.token_hex(6)
+        bound = self.bound_umo(owner)
+        username = bound or "krm-user-" + secrets.token_hex(6)
         password = secrets.token_urlsafe(18)
         salt = secrets.token_bytes(16)
         async with self.hash_slots:
             verifier = await asyncio.to_thread(password_hash, password, salt)
-        if not self.has_games(owner):
-            raise ValueError("当前用户的实例访问已撤销")
+        if not self.has_games(owner) or self.bound_umo(owner) != bound:
+            raise ValueError("当前用户的绑定或实例访问已变更")
         inserted = self.db.execute(
             "INSERT INTO portal_accounts VALUES(?,?,?,?) ON CONFLICT(owner) DO NOTHING",
             (owner, username, salt, verifier),
@@ -105,8 +150,13 @@ class PortalAccounts:
         return True
 
     async def login(self, username, password):
-        if not isinstance(username, str) or not USERNAME.fullmatch(username):
+        if not isinstance(username, str) or not 1 <= len(username) <= 300:
             return None
+        if not USERNAME.fullmatch(username):
+            try:
+                normalize({"type": "umo", "values": [username]})
+            except ValueError:
+                return None
         if not isinstance(password, str) or not 1 <= len(password) <= 128:
             return None
         row = self.db.execute("SELECT * FROM portal_accounts WHERE username=?", (username,)).fetchone()
@@ -116,7 +166,9 @@ class PortalAccounts:
         if not row or not hmac.compare_digest(verifier, row["verifier"]):
             return None
         # A reset or deletion during hashing invalidates the in-flight login.
-        if self.username(row["owner"]) != username or not self.has_games(row["owner"]):
+        current = self.db.execute("SELECT username,salt,verifier FROM portal_accounts WHERE owner=?", (row["owner"],)).fetchone()
+        if (not current or tuple(current) != (username, row["salt"], row["verifier"])
+                or not self.has_games(row["owner"])):
             return None
         now = time.time()
         with self.access.engine.transaction():

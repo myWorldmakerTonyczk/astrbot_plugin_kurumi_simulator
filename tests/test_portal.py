@@ -90,6 +90,7 @@ class PortalTests(unittest.IsolatedAsyncioTestCase):
         gid = self.first["id"]
         user, password = await self.portal.accounts.issue(owner)
         self.assertTrue(password)
+        self.assertEqual(user, "qq:FriendMessage:11111")
         self.assertEqual(await self.portal.accounts.issue(owner), (user, ""))
         wrong = await self.client.post("/api/login", json={"username": user, "password": "wrong"}, headers=POST)
         self.assertEqual(wrong.status, 401)
@@ -125,6 +126,17 @@ class PortalTests(unittest.IsolatedAsyncioTestCase):
         self.portal.accounts.reset(owner)
         revoked = await self.client.get("/api/account", params={"game": gid}, headers=headers)
         self.assertEqual(revoked.status, 401)
+
+    async def test_admin_password_replacement_revokes_existing_portal_login(self):
+        owner = self.first["owner_id"]
+        username, old_password = await self.portal.accounts.issue(owner)
+        old_session = await self.portal.accounts.login(username, old_password)
+        self.assertTrue(old_session)
+        await self.portal.accounts.set_password(owner, "new-test-password")
+        old = await self.client.get("/api/account", params={"game": self.first["id"]}, headers={"Cookie": f"{COOKIE}={old_session}"})
+        self.assertEqual(old.status, 401)
+        self.assertIsNone(await self.portal.accounts.login(username, old_password))
+        self.assertTrue(await self.portal.accounts.login(username, "new-test-password"))
 
     async def test_existing_random_user_gets_credentials_only_at_configured_umo(self):
         game = self.engine.create({"user_binding": {"type": "random", "values": []}})

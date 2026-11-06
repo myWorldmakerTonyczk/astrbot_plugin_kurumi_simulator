@@ -136,14 +136,50 @@ export class UserManager {
         const currentUmo = bindings[0]?.value || "";
         umo.value = this.drafts.get(user.id)?.umo ?? currentUmo;
         umoLabel.append(umo);
-        form.append(nameLabel, umoLabel);
+        const password = make("input");
+        password.type = "password";
+        password.autocomplete = "new-password";
+        password.minLength = 8;
+        password.maxLength = 128;
+        password.placeholder = user.portal_username ? "留空保留当前密码" : "输入或生成首次登录密码";
+        password.value = this.drafts.get(user.id)?.password ?? "";
+        const passwordLabel = make("label", "远程面板密码");
+        passwordLabel.append(password);
+        const account = make("div", null, "managed-portal-account");
+        const accountLabel = make("strong", "远程面板登录");
+        const accountName = make("p", null, "caption");
+        const generate = make("button", "生成随机密码");
+        generate.type = "button";
+        const refreshAccountName = () => {
+          accountName.textContent = umo.value.trim() ? "登录账号 " + umo.value.trim() : "绑定私聊 UMO 后可设置登录密码。";
+        };
+        refreshAccountName();
+        generate.onclick = () => {
+          const bytes = crypto.getRandomValues(new Uint8Array(18));
+          password.value = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+          password.type = "text";
+          form.oninput();
+        };
+        const reveal = make("button", "显示／隐藏新密码");
+        reveal.type = "button";
+        reveal.onclick = () => { password.type = password.type === "password" ? "text" : "password"; };
+        const actions = make("div", null, "connection-actions");
+        actions.append(generate, reveal);
+        account.append(accountLabel, accountName, passwordLabel, actions,
+          make("p", "请在保存前复制新密码。保存后旧密码和旧网页登录会话会失效。", "caption"));
+        form.append(nameLabel, umoLabel, account);
         if (bindings.length > 1) form.append(make("p", "此用户有旧版多 UMO 绑定。保存 UMO 后只保留上面这一项。", "caption"));
-        form.oninput = () => this.drafts.set(user.id, {user, nickname:nickname.value, umo:umo.value, currentUmo, multiple:bindings.length > 1});
+        form.oninput = () => {
+          refreshAccountName();
+          this.drafts.set(user.id, {user, nickname:nickname.value, umo:umo.value, currentUmo, multiple:bindings.length > 1, password:password.value});
+        };
         form.onsubmit = event => event.preventDefault();
         const remove = make("button", "删除用户", "danger-button");
         remove.type = "button";
         remove.onclick = () => this.remove(user);
-        row.append(form, remove);
+        const footer = make("div", null, "managed-user-footer");
+        footer.append(remove);
+        row.append(form, footer);
         group.append(row);
       }
       target.append(group);
@@ -151,8 +187,9 @@ export class UserManager {
   }
 
   async save() {
-    for (const [id, {user, nickname, umo, currentUmo, multiple}] of this.drafts) {
+    for (const [id, {user, nickname, umo, currentUmo, multiple, password}] of this.drafts) {
       const value = umo.trim();
+      if (password && (!value || password.length < 8 || password.length > 128)) throw Error("请填写私聊 UMO，并设置 8～128 个字符的密码。");
       if (!value && currentUmo) throw Error("请填写一个私聊 UMO。");
       if (value && (value !== currentUmo || multiple)) {
         await this.post("command", {action:"update_user_umo", user_id:id, umo:value});
@@ -160,6 +197,7 @@ export class UserManager {
       if (nickname !== user.name) {
         await this.post("command", {action:"update_user", user_id:id, nickname, policy:user.policy, notifications:user.notifications});
       }
+      if (password) await this.post("command", {action:"set_portal_password", user_id:id, password});
       this.drafts.delete(id);
     }
     this.signature = "";

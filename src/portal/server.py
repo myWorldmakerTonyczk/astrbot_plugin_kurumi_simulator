@@ -215,7 +215,7 @@ class Portal(Operations):
     async def login(self, request):
         body = await self.payload(request)
         username = body.get("username", "")
-        if not isinstance(username, str) or len(username) > 80:
+        if not isinstance(username, str) or len(username) > 300:
             raise ValueError("账号格式无效")
         username = username.strip()
         if self.accounts.hash_slots.locked() or not self.accounts.rate_limit(username):
