@@ -30,6 +30,9 @@ GOLD = "#8a6027"
 BLUE = "#315da4"
 CURVES = {"equity", "return", "drawdown", "realized", "fees"}
 ZONE = ZoneInfo("Asia/Shanghai")
+OVERVIEW_PANELS = ("equity", "return", "drawdown")
+WIDE_PANELS = {"candles", "activity"}
+CHART_SIZE = (1120, 645)
 
 
 def fonts():
@@ -80,16 +83,16 @@ def render_png(data, kind):
     if kind not in CHARTS:
         raise ValueError("图表类型无效")
     if kind == "overview":
-        panels = ("equity", "return", "drawdown")
-        image = Image.new("RGB", (1120, 645 * len(panels)), PAPER)
-        for index, panel in enumerate(panels):
+        width, height = CHART_SIZE
+        image = Image.new("RGB", (width, height * len(OVERVIEW_PANELS)), PAPER)
+        for index, panel in enumerate(OVERVIEW_PANELS):
             with Image.open(BytesIO(render_png(data, panel))) as chart:
-                image.paste(chart, (0, 645 * index))
+                image.paste(chart, (0, height * index))
         buffer = BytesIO()
         image.save(buffer, format="PNG")
         return buffer.getvalue()
 
-    image = Image.new("RGB", (1120, 645), PAPER)
+    image = Image.new("RGB", CHART_SIZE, PAPER)
     draw = ImageDraw.Draw(image)
     (heading, body, small), zh = fonts()
 
@@ -229,4 +232,43 @@ def render_png(data, kind):
     label(40, 604, footer, small, MUTED)
     buffer = BytesIO()
     image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def render_chart_sheet(data, kinds):
+    """Compose one image, keeping wider charts on their own row."""
+    if len(kinds) == 1:
+        return render_png(data, kinds[0])
+
+    panels = list(dict.fromkeys(
+        panel for kind in kinds for panel in (OVERVIEW_PANELS if kind == "overview" else (kind,))
+    ))
+    rows = []
+    for panel in panels:
+        if rows and len(rows[-1]) == 1 and rows[-1][0] not in WIDE_PANELS and panel not in WIDE_PANELS:
+            rows[-1].append(panel)
+        else:
+            rows.append([panel])
+
+    chart_width, chart_height = CHART_SIZE
+    gap = 24
+    columns = max(map(len, rows))
+    width = chart_width * columns + gap * (columns - 1)
+    height = len(rows) * (chart_height + gap) + gap
+    sheet = Image.new("RGB", (width + 2 * gap, height), GRID)
+    for row_number, row in enumerate(rows):
+        top = gap + row_number * (chart_height + gap)
+        for column, kind in enumerate(row):
+            with Image.open(BytesIO(render_png(data, kind))) as chart:
+                if len(row) == 1 and columns == 2:
+                    # Keep the complete chart and center it in a full-width card.
+                    ImageDraw.Draw(sheet).rectangle(
+                        (gap, top, gap + width - 1, top + chart_height - 1), fill=PAPER,
+                    )
+                    left = gap + (width - chart_width) // 2
+                else:
+                    left = gap + column * (chart_width + gap)
+                sheet.paste(chart, (left, top))
+    buffer = BytesIO()
+    sheet.save(buffer, format="PNG")
     return buffer.getvalue()

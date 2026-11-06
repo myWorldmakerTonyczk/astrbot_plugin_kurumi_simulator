@@ -8,7 +8,7 @@ from PIL import Image
 from src.agent.decisions import DecisionService
 from src.core.engine import Engine
 from src.core.replay import review
-from src.core.replay_image import CHARTS, render_png
+from src.core.replay_image import CHARTS, render_chart_sheet, render_png
 from src.core.replay_records import decision_scope
 from src.diary.store import DiaryStore
 
@@ -77,3 +77,11 @@ class ReplayTests(unittest.IsolatedAsyncioTestCase):
                 with Image.open(BytesIO(render_png(data, kind))) as image:
                     self.assertEqual(image.format, "PNG")
                     image.verify()
+
+    def test_chart_sheet_keeps_wide_panels_on_their_own_row(self):
+        now = int(time.time())
+        data = dict(days=1, start=now - 86400, end=now, pair="EUR/USD", events=[], marks=[], candles=[])
+        with Image.open(BytesIO(render_chart_sheet(data, ["candles", "equity", "return"]))) as image:
+            self.assertEqual(image.format, "PNG")
+            self.assertEqual(image.size, (2312, 1362))
+            image.verify()

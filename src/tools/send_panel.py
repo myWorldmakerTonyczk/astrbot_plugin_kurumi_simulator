@@ -12,6 +12,7 @@ PARAMETERS = dict(
         mode=dict(type="string", enum=["read", "summary", "login"], description="read 本人只读；summary 可分享的图表摘要；login 账号登录"),
         instance_id=dict(type="string", description="可选，当前用户的实例 ID 或列表序号"),
     ),
+    required=[],
     additionalProperties=False,
 )
 
