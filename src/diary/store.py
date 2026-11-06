@@ -112,7 +112,7 @@ class DiaryStore:
             raise ValueError("日记任务不存在")
         return dict(row)
 
-    def list(self, gid, before="", limit=10):
+    def list(self, gid, before="", limit=10, *, successful_only=False):
         self.engine.get(gid)
         if (
             not isinstance(before, str)
@@ -120,10 +120,11 @@ class DiaryStore:
             or not 1 <= limit <= 30
         ):
             raise ValueError("日记分页参数无效")
+        status_filter = " AND status='success'" if successful_only else ""
         return [
             dict(row)
             for row in self.db.execute(
-                "SELECT day,zone,status,content,error,attempts,updated FROM diaries WHERE game=? AND day<? ORDER BY day DESC LIMIT ?",
+                f"SELECT day,zone,status,content,error,attempts,updated FROM diaries WHERE game=? AND day<?{status_filter} ORDER BY day DESC LIMIT ?",
                 (gid, before or "9999-12-31", limit),
             )
         ]

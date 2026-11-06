@@ -3,6 +3,7 @@
 import asyncio
 from .engine import PAIRS
 from .journal import compact_log, journal
+from .tool_reads import diary_view, history_view
 
 RECORD_VOICE = (
     "用户没有额外要求时，报告、看盘摘要、交易理由、日志和计划默认沿用原人设的语气，"
@@ -17,7 +18,9 @@ def lock_for(plugin, gid):
     return plugin.instance_locks.setdefault(gid, asyncio.Lock())
 
 
-def public_snapshot(plugin, gid, log_limit=30):
+def public_snapshot(plugin, gid, log_limit=30, include_details=False):
+    if type(include_details) is not bool:
+        raise ValueError("include_details须为布尔值")
     if type(log_limit) is not int or not 0 <= log_limit <= 50:
         raise ValueError("近期日志条数须在0到50之间")
     result = plugin.engine.snapshot(gid, log_limit)
@@ -28,29 +31,37 @@ def public_snapshot(plugin, gid, log_limit=30):
 
     result["game"]["interval"] = effective(plugin.engine, result["game"])["effective_interval"]
     result["quotes"] = {p: q for p, q in result["quotes"].items() if p in PAIRS}
+    if not include_details:
+        game = result["game"]
+        keys = ("id", "name", "initial", "balance", "invested", "fees", "pairs", "leverage",
+                "fee_rate", "rules", "status", "drawdown", "loan_enabled", "loan_limit",
+                "loan_principal", "loan_interest", "interval", "action_revision")
+        result["game"] = {key: game[key] for key in keys if key in game}
+        plan = game.get("plan", "")
+        result["game"]["plan"] = plan if len(plan) <= 500 else plan[:500] + "…"
+        if result["valuation"] is None:
+            result["game"]["positions"] = game["positions"]
+        elif result["valuation"]:
+            value = result["valuation"]
+            value.pop("collateral", None)
+            value["positions"] = [
+                {key: field for key, field in position.items() if key not in ("reason", "created")}
+                for position in value["positions"]
+            ]
+        result.pop("pairs", None)
     return result
 
 
 async def execute(plugin, gid, action, body, *, already_locked=False):
     if action == "state":
-        return public_snapshot(plugin, gid, body.get("log_limit", 30))
+        return public_snapshot(plugin, gid, body.get("log_limit", 30), body.get("include_details", False))
     plugin.engine.get(gid)
     if action == "logs":
         return journal(plugin.engine, gid, **body)
     if action == "history":
-        pair = body.get("pair", "")
-        period = body.get("period", "1h")
-        limit = body.get("limit", 80)
-        before = body.get("before", 0)
-        if pair not in PAIRS or type(limit) is not int or not 10 <= limit <= 200:
-            raise ValueError("历史行情参数无效")
-        return await plugin.history.page(
-            dict(plugin.settings(), history_source="market"),
-            pair,
-            period,
-            before,
-            limit,
-        )
+        return await history_view(plugin, **body)
+    if action == "diary":
+        return diary_view(plugin.diary.store, gid, **body)
     if action not in WRITE_ACTIONS:
         raise ValueError("无此操作权限；不能自行充值、改规则或修改笔记")
     if not str(body.get("reason", "")).strip():

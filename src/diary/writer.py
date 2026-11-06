@@ -4,6 +4,8 @@ import asyncio
 from astrbot.core.agent.tool import FunctionTool, ToolSet
 from ..agent.runner import silent_event, reference_context
 from ..core.engine import dump
+from ..core.journal import compact_log
+from ..core.tool_reads import DIARY_FIELDS, diary_view
 from ..agent.llm import ensure_available, tool_loop
 from .store import redact
 
@@ -22,22 +24,27 @@ PROMPT = """用第一人称写一篇外汇交易日记。用户没有额外要�
 def make_tools(plugin, job):
     store = plugin.diary.store
 
-    async def records(_event, kind="logs", before=0, limit=30):
+    async def records(_event, kind="logs", before=0, limit=20, pages=1, include_text=False):
         try:
-            return dump(store.records(plugin, job, kind, before, limit))
+            if (type(limit) is not int or not 1 <= limit <= 50
+                    or type(pages) is not int or not 1 <= pages <= 5 or limit * pages > 50
+                    or type(include_text) is not bool):
+                raise ValueError("分页参数无效，每次最多50条")
+            result = store.records(plugin, job, kind, before, limit * pages)
+            if not include_text:
+                if kind == "logs":
+                    result["records"] = [compact_log(row) for row in result["records"]]
+                else:
+                    for row in result["records"]:
+                        if len(row["content"]) > 160:
+                            row["content"] = row["content"][:160] + "…"
+            return dump(result)
         except (ValueError, TypeError) as exc:
             return dump(dict(error=str(exc)))
 
-    async def diaries(_event, before="", limit=3):
+    async def diaries(_event, before="", **options):
         try:
-            if (
-                not isinstance(before, str)
-                or type(limit) is not int
-                or not 1 <= limit <= 10
-            ):
-                raise ValueError("日记查询参数无效")
-            rows = store.list(job["game"], min(before or job["day"], job["day"]), limit)
-            return redact(dump([row for row in rows if row["status"] == "success"]))
+            return dump(diary_view(store, job["game"], before=min(before or job["day"], job["day"]), **options))
         except (ValueError, TypeError) as exc:
             return dump(dict(error=str(exc)))
 
@@ -45,13 +52,15 @@ def make_tools(plugin, job):
         [
             FunctionTool(
                 name="kurumi_diary_records",
-                description="只读查询当前实例截止日记日期以前的交易/聊天；ID逆序分页，next_before供下页使用。聊天从插件启用后开始记录。",
+                description="只读查询当前实例截止日记日期以前的交易/聊天；ID逆序分页，next_before供下页使用；默认摘要，按需传include_text=true。聊天从插件启用后开始记录。",
                 parameters=dict(
                     type="object",
                     properties=dict(
                         kind=dict(type="string", enum=["logs", "chat"]),
                         before=dict(type="integer", minimum=0),
                         limit=dict(type="integer", minimum=1, maximum=50),
+                        pages=dict(type="integer", minimum=1, maximum=5),
+                        include_text=dict(type="boolean"),
                     ),
                     additionalProperties=False,
                 ),
@@ -62,10 +71,7 @@ def make_tools(plugin, job):
                 description="只读查询当前实例更早的日记；before为日期YYYY-MM-DD，严格不返回本日及未来日记。",
                 parameters=dict(
                     type="object",
-                    properties=dict(
-                        before=dict(type="string"),
-                        limit=dict(type="integer", minimum=1, maximum=10),
-                    ),
+                    properties=DIARY_FIELDS,
                     additionalProperties=False,
                 ),
                 handler=diaries,
@@ -83,8 +89,8 @@ async def write(plugin, job, config):
         raise ValueError("请先在实例设置选择人格或关联有相应人格的会话")
     persona = await plugin.context.persona_manager.get_persona(persona_id)
     store = plugin.diary.store
-    logs = store.records(plugin, job, "logs", limit=50)
-    logs["records"] = [r for r in logs["records"] if r["created"] >= job["start"]]
+    logs = store.records(plugin, job, "logs", limit=20)
+    logs["records"] = [compact_log(r) for r in logs["records"] if r["created"] >= job["start"]]
     chat = store.records(
         plugin, job, "chat", limit=max(1, min(50, config["history_count"]))
     )
@@ -105,9 +111,7 @@ async def write(plugin, job, config):
     )
     logs["records"].reverse()
     chat["records"].reverse()
-    recent = [
-        r for r in store.list(game["id"], job["day"], 3) if r["status"] == "success"
-    ]
+    recent = diary_view(store, game["id"], before=job["day"])["entries"]
     payload = dict(
         diary_date=job["day"],
         timezone=job["zone"],
