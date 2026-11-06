@@ -113,14 +113,14 @@ export class UserManager {
       const members = users.filter(user => (user.id === mainUserId) === (role === "main"));
       if (!members.length) group.append(make("p", "暂无用户。可在新建交易实例时绑定私聊 UMO。", "caption"));
       for (const user of members) {
-        const row = make("details", null, "managed-user");
+        const row = make(multiplayer ? "details" : "div", null, "managed-user");
         row.dataset.user = user.id;
         row.open = old.get(user.id) ?? !multiplayer;
-        const summary = make("summary");
+        const summary = make(multiplayer ? "summary" : "div", null, "managed-user-heading");
         summary.append(make("strong", user.name), make("span", (user.instances?.length || 0) + " 个实例", "caption"));
+        if (multiplayer) summary.append(make("span", null, "managed-user-toggle"));
         row.append(summary);
         const bindings = (user.bindings || []).filter(alias => alias.type === "umo");
-        row.append(make("p", bindings.length ? bindings.map(alias => alias.value).join("、") : "尚无私聊 UMO，请补充绑定。", "caption"));
         const form = make("form");
         const nickname = make("input");
         nickname.name = "nickname";
@@ -129,14 +129,16 @@ export class UserManager {
         nickname.value = this.drafts.get(user.id)?.nickname ?? user.name;
         const nameLabel = make("label", "用户昵称");
         nameLabel.append(nickname);
-        const umoLabel = make("label", "添加私聊 UMO（每行一个）");
-        const umos = make("textarea");
-        umos.rows = 2;
-        umos.placeholder = "default:FriendMessage:123456789";
-        umos.value = this.drafts.get(user.id)?.umos ?? "";
-        umoLabel.append(umos);
+        const umoLabel = make("label", "私聊 UMO");
+        const umo = make("input");
+        umo.name = "umo";
+        umo.placeholder = "default:FriendMessage:123456789";
+        const currentUmo = bindings[0]?.value || "";
+        umo.value = this.drafts.get(user.id)?.umo ?? currentUmo;
+        umoLabel.append(umo);
         form.append(nameLabel, umoLabel);
-        form.oninput = () => this.drafts.set(user.id, {user, nickname:nickname.value, umos:umos.value});
+        if (bindings.length > 1) form.append(make("p", "此用户有旧版多 UMO 绑定。保存 UMO 后只保留上面这一项。", "caption"));
+        form.oninput = () => this.drafts.set(user.id, {user, nickname:nickname.value, umo:umo.value, currentUmo, multiple:bindings.length > 1});
         form.onsubmit = event => event.preventDefault();
         const remove = make("button", "删除用户", "danger-button");
         remove.type = "button";
@@ -149,10 +151,11 @@ export class UserManager {
   }
 
   async save() {
-    for (const [id, {user, nickname, umos}] of this.drafts) {
-      const values = umos.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
-      if (values.length) {
-        await this.post("command", {action:"update_user_umo", user_id:id, umos:values});
+    for (const [id, {user, nickname, umo, currentUmo, multiple}] of this.drafts) {
+      const value = umo.trim();
+      if (!value && currentUmo) throw Error("请填写一个私聊 UMO。");
+      if (value && (value !== currentUmo || multiple)) {
+        await this.post("command", {action:"update_user_umo", user_id:id, umo:value});
       }
       if (nickname !== user.name) {
         await this.post("command", {action:"update_user", user_id:id, nickname, policy:user.policy, notifications:user.notifications});

@@ -302,6 +302,8 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                 binding = options.get("user_binding")
                 if not isinstance(binding, dict) or binding.get("type") != "umo":
                     raise ValueError("新建实例只能使用私聊 UMO 绑定")
+                if not isinstance(binding.get("values"), list) or len(binding["values"]) != 1:
+                    raise ValueError("每位用户只能绑定一个私聊 UMO")
                 options["persona"] = await self.validate_persona(options.get("persona"))
                 options.setdefault("auto", True)
                 if type(options["auto"]) is not bool:
@@ -345,16 +347,27 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                 return json_response({"ok": True})
             if body.get("action") == "update_user_umo":
                 uid = str(body.get("user_id", ""))
-                binding = ownership.normalize(dict(type="umo", values=body.get("umos")))
+                binding = ownership.normalize(dict(type="umo", values=[body.get("umo")]))
+                umo = binding["values"][0]
+                alias = "umo:" + umo
                 with self.engine.transaction():
                     if not self.engine.db.execute("SELECT 1 FROM sim_users WHERE id=?", (uid,)).fetchone():
                         raise ValueError("用户不存在")
-                    for umo in binding["values"]:
-                        alias = "umo:" + umo
-                        row = self.engine.db.execute("SELECT user_id FROM sim_user_aliases WHERE alias=?", (alias,)).fetchone()
-                        if row and row[0] != uid:
-                            raise ValueError("此 UMO 已绑定其他用户")
-                        self.engine.db.execute("INSERT OR IGNORE INTO sim_user_aliases VALUES(?,?)", (alias, uid))
+                    row = self.engine.db.execute("SELECT user_id FROM sim_user_aliases WHERE alias=?", (alias,)).fetchone()
+                    if row and row[0] != uid:
+                        raise ValueError("此 UMO 已绑定其他用户")
+                    self.engine.db.execute(
+                        "DELETE FROM sim_user_aliases WHERE user_id=? AND alias LIKE 'umo:%' AND alias<>?",
+                        (uid, alias),
+                    )
+                    self.engine.db.execute("INSERT OR IGNORE INTO sim_user_aliases VALUES(?,?)", (alias, uid))
+                    self.engine.db.execute("DELETE FROM sim_reference_grants WHERE user_id=? AND umo<>?", (uid, umo))
+                    for game in self.engine.games():
+                        if game.get("owner_id") != uid:
+                            continue
+                        game.update(user_binding=binding, reference_umo=umo, umo=umo)
+                        game["action_revision"] = game.get("action_revision", 0) + 1
+                        self.engine.save(game)
                 return json_response({"ok": True})
             if body.get("action") == "delete_user":
                 return json_response(

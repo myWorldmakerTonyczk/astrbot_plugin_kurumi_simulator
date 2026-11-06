@@ -1811,3 +1811,12 @@ input[type="checkbox"]:disabled { opacity: .55; cursor: default; }
   .role-settings-grid { grid-template-columns: minmax(5.5rem, 1.05fr) repeat(2, minmax(0, 1fr)); }
   .role-settings-grid > * { padding: 6px; font-size: .8rem; }
 }
+
+#workspace-main-picker[hidden] { display: none; }
+.managed-user-heading { display: flex; align-items: center; gap: 10px; }
+.managed-user-heading .caption { margin-inline-start: auto; }
+.managed-user-toggle { font-size: .8rem; color: var(--muted); }
+.managed-user-toggle::before { content: "▸ 展开"; }
+.managed-user[open] .managed-user-toggle::before { content: "▾ 收起"; }
+#workspace-primary-user .managed-user { padding: 14px; }
+#workspace-primary-user .managed-user form { margin: 12px 0; }

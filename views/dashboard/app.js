@@ -901,7 +901,7 @@ $("pairs-all").onclick = () => {
 function collectUserBinding(p) {
   return {
     type: "umo",
-    values: (p.bound_umos || "").split(/\r?\n/).map(value => value.trim()).filter(Boolean),
+    values: [(p.bound_umos || "").trim()],
   };
 }
 let pendingDeletion = null;
@@ -964,6 +964,12 @@ function renderManagedUsers() {
     modeForm.elements.multiplayer.checked = multiplayer;
     options(modeForm.elements.main_user_id, users.length ? users : [{id: "", name: "新建实例后自动设为主用户"}], main_user_id);
   }
+  $("workspace-main-picker").hidden = !multiplayer;
+  const cards = $("managed-users");
+  const roles = $("workspace-role-settings");
+  const primary = $("workspace-primary-user");
+  if (multiplayer && roles.nextElementSibling !== cards) roles.after(cards);
+  if (!multiplayer && cards.parentElement !== primary) primary.append(cards);
   userManager.renderRoles(workspaceUsers(), users);
   userManager.render(multiplayer ? users : users.filter(user => user.id === main_user_id), main_user_id, multiplayer);
 }

@@ -602,6 +602,8 @@ with sync_playwright() as p:
     page.wait_for_function("window.fixture.workspace.mode.multiplayer === false")
     assert page.locator("#workspace-role-settings [data-role=others]").first.is_hidden()
     assert "主用户" in page.locator("#managed-users").inner_text()
+    assert page.locator("#workspace-main-picker").is_hidden()
+    assert page.locator("#workspace-primary-user input[name=umo]").is_visible()
     assert page.locator("#managed-users .managed-user").count() == 1
     page.locator("#back-to-catalog").click()
     assert page.locator("#instance-directory .instance-card").count() == 2

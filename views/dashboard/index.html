@@ -480,9 +480,10 @@
               <h3>用户与权限</h3>
               <form id="workspace-mode-settings">
                 <label class="check"><input name="multiplayer" type="checkbox">开启多人模式</label>
-                <label>主用户<select name="main_user_id"></select></label>
+                <label id="workspace-main-picker">主用户<select name="main_user_id"></select></label>
                 <p class="caption">单人模式只显示主用户的设置和实例。切换模式会保留所有用户与交易记录。聊天工具按用户归属隔离。</p>
               </form>
+              <div id="workspace-primary-user"></div>
               <div id="workspace-role-settings"></div>
               <div id="managed-users"></div>
               <div class="connection-actions"><button type="submit" form="workspace-mode-settings">保存设置</button><span id="workspace-save-status" role="status"></span></div>
@@ -674,24 +675,10 @@
             <legend>
               绑定用户 <span class="required-mark">（必填）</span>
             </legend>
-            <label
-              >会话 UMO 列表<textarea
-                id="bound-umos"
-                name="bound_umos"
-                rows="3"
-                required
-                placeholder="default:FriendMessage:123456789"
-              ></textarea
-              ><span class="caption"
-                >请输入完整的 UMO，可通过 /sid 指令快捷获取。格式:
-                {platform_name}:{message_type}:{session_id}。{platform_name}
-                就是你在 WebUI 中的 机器人
-                一栏自定义的机器人名称。{message_type} 参数为
-                “FriendMessage”。例如 default:FriendMessage:123456789</span
-              ><span class="caption"
-                >每行一条，最多20条。填写多条表示它们属于同一用户；推荐使用UMO以区分机器人和会话。</span
-              ></label
-            >
+            <label>私聊 UMO<input id="bound-umos" name="bound_umos" required
+              placeholder="default:FriendMessage:123456789">
+              <span class="caption">在目标私聊中发送 /sid，复制完整的会话 UMO。每位用户只能绑定一个。</span>
+            </label>
             <label
               >用户昵称（选填）<input
                 name="user_nickname"
