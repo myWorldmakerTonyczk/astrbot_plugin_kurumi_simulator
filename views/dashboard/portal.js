@@ -129,6 +129,10 @@ function showPage(page) {
 async function start() {
   session = await api("session");
   const games = session.games || [];
+  if (games.length && ["account", "read"].includes(session.mode)) {
+    location.replace("/workspace/");
+    return;
+  }
   byId("portal-welcome").hidden = session.authenticated;
   byId("portal-logout").hidden = !session.authenticated;
   byId("portal-tabs").hidden = session.mode !== "account" || !games.length;

@@ -7,6 +7,8 @@ from urllib.parse import urlsplit
 from aiohttp import web
 
 from ..core.replay import review
+from ..core.engine import PAIRS
+from ..market_data.history import identity
 from ..core.journal import journal
 from ..diary.store import redact
 from .access import PortalAccess
@@ -28,6 +30,15 @@ ASSETS = {
     "lightweight-charts.js": "vendor/lightweight-charts.js",
     "LICENSE-lightweight-charts.txt": "vendor/LICENSE-lightweight-charts.txt",
     "NOTICE.txt": "vendor/NOTICE.txt",
+}
+WORKSPACE_FILES = {
+    "app.js", "portal-bridge.js", "style.css", "replay.css", "journal-panel.js",
+    "notebook.js", "required-fields.js", "user-manager.js", "model-settings.js",
+    "notification-form.js", "diary-panel.js", "portal-settings.js", "replay-panel.js",
+    "history-chart.js", "notifications.js", "instance-catalog.js",
+    "vendor/lightweight-charts.js", "vendor/LICENSE-lightweight-charts.txt", "vendor/NOTICE.txt",
+    "assets/avatar.png", "assets/neutral.png", "assets/hero-green.png", "assets/hero-red.png",
+    "assets/laugh.png", "assets/distress.png", "assets/welcome.png",
 }
 SECURITY_HEADERS = {
     "Cache-Control": "no-store",
@@ -126,6 +137,9 @@ class Portal(Operations):
             web.post("/api/login", self.login), web.get("/api/account", self.account_state),
             web.post("/api/action", self.action),
             web.get("/api/journal", self.journal), web.get("/api/notebook", self.notebook),
+            web.get("/workspace/", self.workspace), web.get("/workspace/{file:.+}", self.workspace_asset),
+            web.get("/api/workspace", self.workspace_state),
+            web.get("/api/history", self.history), web.get("/api/diaries", self.diaries),
         ])
         return app
 
@@ -265,6 +279,88 @@ class Portal(Operations):
         self.game(request, session)
         return web.json_response(result)
 
+    async def workspace(self, request):
+        try:
+            session = self.identity(request)
+        except web.HTTPUnauthorized:
+            return web.HTTPFound("/")
+        if session["mode"] == "summary":
+            return web.HTTPFound("/")
+        markup = (ROOT / "index.html").read_text(encoding="utf-8")
+        return web.Response(text=markup.replace("<body>", '<body data-remote-workspace>'), content_type="text/html")
+
+    async def workspace_asset(self, request):
+        path = request.match_info["file"]
+        if path not in WORKSPACE_FILES:
+            raise web.HTTPNotFound()
+        content_type = {
+            ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".txt": "text/plain",
+        }[Path(path).suffix]
+        return web.FileResponse(ROOT / path, headers={"Content-Type": content_type})
+
+    async def workspace_state(self, request):
+        game = self.records_game(request)
+        session = self.identity(request)
+        snapshot = self.plugin.engine.snapshot(game["id"], log_limit=0)
+        fields = (
+            "id", "status", "created", "pairs", "leverage", "drawdown", "balance",
+            "fees", "fee_rate", "initial", "loan_enabled", "loan_limit", "loan_rate", "allow_deposit",
+        )
+        public_game = {key: game[key] for key in fields if key in game}
+        public_game.update(self.describe_game(game, session["mode"]))
+        public_game.update(plan=redact(game.get("plan") or ""), notes=redact(game.get("notes") or ""))
+        public_game["positions"] = [self.public_position(row) for row in game["positions"]]
+        valuation = snapshot["valuation"]
+        if valuation:
+            valuation = {key: valuation[key] for key in (
+                "equity", "free", "floating", "margin", "debt", "profit", "return_rate",
+            ) if key in valuation}
+            valuation["positions"] = [self.public_position(row) for row in snapshot["valuation"]["positions"]]
+        config = self.plugin.settings()
+        return web.json_response(dict(
+            current=dict(game=public_game, valuation=valuation, quotes=snapshot["quotes"],
+                         market_error="行情暂不可用" if snapshot["market_error"] else "",
+                         logs=[self.public_log(row) for row in self.plugin.engine.logs(game["id"], limit=4)]),
+            pairs=PAIRS, connection=dict(history_source=config.get("history_source", "frankfurter")),
+            market_identity=identity(config),
+            history_feeds={kind: identity(dict(config, history_source=kind)) for kind in ("market", "frankfurter")},
+        ))
+
+    @staticmethod
+    def public_position(row):
+        return {key: row[key] for key in (
+            "id", "pair", "side", "units", "entry", "current", "pnl", "sl", "tp", "leverage", "margin",
+        ) if key in row}
+
+    async def history(self, request):
+        self.records_game(request)
+        session = self.identity(request)
+        config = self.plugin.settings()
+        source = request.query.get("history_source", config.get("history_source", "frankfurter"))
+        if source not in ("market", "frankfurter"):
+            raise ValueError("历史来源无效")
+        if self.review_slots.locked():
+            return web.json_response({"error": "行情请求较多，请稍后重试"}, status=429)
+        async with self.review_slots:
+            result = await self.plugin.history.page(
+                dict(config, history_source=source), request.query.get("pair", ""),
+                request.query.get("period", "5m"), int(request.query.get("before", 0)),
+                int(request.query.get("limit", 200)),
+            )
+        if self.identity(request) != session:
+            raise web.HTTPUnauthorized()
+        self.records_game(request)
+        return web.json_response(result)
+
+    async def diaries(self, request):
+        game = self.records_game(request)
+        rows = self.plugin.diary.store.list(
+            game["id"], request.query.get("before", ""), int(request.query.get("limit", 10)),
+            successful_only=True,
+        )
+        entries = [dict(day=row["day"], status=row["status"], content=redact(row["content"] or "")) for row in rows]
+        return web.json_response(dict(entries=entries, next_before=entries[-1]["day"] if entries else ""))
+
     def records_game(self, request):
         session = self.identity(request)
         if session["mode"] == "summary":
@@ -276,13 +372,20 @@ class Portal(Operations):
         result = journal(
             self.plugin.engine, game["id"], page=int(request.query.get("page", 1)),
             before=int(request.query.get("before", 0)), filter=request.query.get("filter", "all"),
+            pair=request.query.get("pair", ""), source=request.query.get("source", "all"),
+            sort=request.query.get("sort", "newest"), include_text=True,
         )
-        result["logs"] = [
-            dict(time=row["created"], action=row["action"], source=row["source"], status=row["status"],
-                 reason=redact(row.get("reason") or ""))
-            for row in result["logs"]
-        ]
+        result["logs"] = [self.public_log(row) for row in result["logs"]]
         return web.json_response(result)
+
+    def public_log(self, row):
+        detail = row.get("detail") or {}
+        safe = {key: redact(detail[key]) for key in ("text", "summary", "error", "kind")
+                if isinstance(detail.get(key), str)}
+        if isinstance(detail.get("position"), dict):
+            safe["position"] = self.public_position(detail["position"])
+        return dict(id=row["id"], created=row["created"], action=row["action"], source=row["source"],
+                    status=row["status"], reason=redact(row.get("reason") or ""), detail=safe)
 
     async def notebook(self, request):
         game = self.records_game(request)

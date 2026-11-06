@@ -1830,3 +1830,9 @@ input[type="checkbox"]:disabled { opacity: .55; cursor: default; }
 @media (max-width: 620px) { #managed-users .managed-user form { grid-template-columns: minmax(0, 1fr); } }
 
 .managed-user > .managed-user-heading { display: flex; }
+
+/* The signed-in remote workspace shares View markup and styles. */
+[data-remote-workspace] :is(.workspace-switch, #back-to-catalog, #instance-context, [data-page="setup"], [data-page="catalog"]) {
+  display: none !important;
+}
+[data-remote-workspace] [data-portal-prohibited="true"] { cursor: help; }

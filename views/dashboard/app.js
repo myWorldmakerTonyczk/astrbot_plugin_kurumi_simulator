@@ -10,7 +10,9 @@ import { ReplayPanel } from "./replay-panel.js";
 import { HistoryChart } from "./history-chart.js";
 import { TradingNotices } from "./notifications.js";
 import { instanceGroups, renderInstanceDirectory } from "./instance-catalog.js";
-const bridge = window.AstrBotPluginView;
+import { createPortalBridge } from "./portal-bridge.js";
+const remote = document.body.hasAttribute("data-remote-workspace");
+const bridge = remote ? createPortalBridge() : window.AstrBotPluginView;
 const tradingNotices = new TradingNotices(bridge);
 const diaryPanel = new DiaryPanel(bridge);
 const replayPanel = new ReplayPanel(document.getElementById("replay"), (game, options) =>
@@ -158,6 +160,7 @@ function tab(name) {
   else if (gid) {
     instancePage = name;
     workspace("instances");
+    if (remote && name === "journal" && journalPanel.gid === gid) journalPanel.load(1, 0);
   }
 }
 function returnToCatalog() {
@@ -234,13 +237,13 @@ async function load() {
     }
     state = nextState;
     const mode = workspaceUsers();
-    if (state.missing_instance || (gid && !mode.multiplayer && state.current?.game.owner_id !== mode.main_user_id)) {
+    if (!remote && (state.missing_instance || (gid && !mode.multiplayer && state.current?.game.owner_id !== mode.main_user_id))) {
       gid = "";
       state.current = null;
       workspace("instances");
     }
     render();
-    await tradingNotices.sync(tradingNotices.activeGame);
+    if (!remote) await tradingNotices.sync(tradingNotices.activeGame);
     message(
       state.market_error ||
         state.runtime_error ||
@@ -283,6 +286,11 @@ async function post(route, body) {
   }
 }
 async function action(name, params) {
+  if (remote && (!state?.current?.game.trade || !["open", "close", "protect"].includes(name))) {
+    message("管理员已禁止此操作", true);
+    return;
+  }
+  if (remote) params = Object.fromEntries(Object.entries(params).map(([key, value]) => [key, String(value)]));
   try {
     await post("command", {
       game: gid,
@@ -334,35 +342,39 @@ function journal(container, logs) {
   }
 }
 function render() {
-  renderCatalog();
-  renderManagedUsers();
-  diaryPanel.render(state.diary_settings, gid);
-  modelSettings.render(state.llm_settings, state.providers);
-  if(state.decision_limits&&!decisionSettingsDirty) {
-    const form=$("decision-settings"),v=state.decision_limits;
-    form.elements.cooldown.value=v.cooldown/60;form.elements.hourly_limit.value=v.hourly_limit;
-    for(const key of ["stop_loss","take_profit","liquidation","margin_call","end"])form.elements[key].checked=v[key];
+  if (remote) {
+    diaryPanel.render(null, gid);
+  } else {
+    renderCatalog();
+    renderManagedUsers();
+    diaryPanel.render(state.diary_settings, gid);
+    modelSettings.render(state.llm_settings, state.providers);
+    if(state.decision_limits&&!decisionSettingsDirty) {
+      const form=$("decision-settings"),v=state.decision_limits;
+      form.elements.cooldown.value=v.cooldown/60;form.elements.hourly_limit.value=v.hourly_limit;
+      for(const key of ["stop_loss","take_profit","liquidation","margin_call","end"])form.elements[key].checked=v[key];
+    }
+    instanceNotices.render(state.instance_access, gid);
+    portalSettings.render(state.portal, gid, state.portal_instance);
+    showSettings(settingsPage);
+    if (!$("pairs").children.length) {
+      renderPairCheckboxes($("pairs"), [state.pairs[0]]);
+      updatePairCount();
+    }
+    if (!connectionDirty && !$("connection").contains(document.activeElement)) {
+      const connection = state.connection;
+      const form = $("connection");
+      form.elements.market_source.value = connection.market_source || "biquote";
+      form.elements.history_source.value =
+        connection.history_source || "frankfurter";
+      form.elements.market_account.value = connection.market_account || "";
+      for (const key of ["biquote", "sina"])
+        form.elements[key + "_url"].value =
+          connection[key + "_url"] || connection.defaults?.[key] || "";
+      sourceFields();
+    }
   }
-  instanceNotices.render(state.instance_access, gid);
-  portalSettings.render(state.portal, gid, state.portal_instance);
-  showSettings(settingsPage);
   workspace(workspaceMode);
-  if (!$("pairs").children.length) {
-    renderPairCheckboxes($("pairs"), [state.pairs[0]]);
-    updatePairCount();
-  }
-  if (!connectionDirty && !$("connection").contains(document.activeElement)) {
-    const connection = state.connection;
-    const form = $("connection");
-    form.elements.market_source.value = connection.market_source || "biquote";
-    form.elements.history_source.value =
-      connection.history_source || "frankfurter";
-    form.elements.market_account.value = connection.market_account || "";
-    for (const key of ["biquote", "sina"])
-      form.elements[key + "_url"].value =
-        connection[key + "_url"] || connection.defaults?.[key] || "";
-    sourceFields();
-  }
   const selected = gid && state.current?.game.id === gid ? state.current : null;
   $("desk").hidden = !selected;
   refreshRequired();
@@ -397,7 +409,7 @@ function render() {
     " · 第 " +
     (Math.floor((Date.now() / 1000 - g.created) / 86400) + 1) +
     " 天";
-  renderDecision();
+  if (!remote) renderDecision();
   $("metrics").replaceChildren();
   for (const [label, value] of [
     ["当前净值", v ? "$" + money(v.equity) : "等待行情"],
@@ -421,11 +433,12 @@ function render() {
   );
   options($("trade-pair"), g.pairs, $("trade-pair").value || g.pairs[0]);
   journalPanel.update(gid, [...new Set([...g.pairs, ...state.pairs])], selected.logs);
+  if (remote && instancePage === "journal" && !journalPanel.remote) journalPanel.load(1, 0);
   journal($("recent"), selected.logs.slice(0, 4));
   renderNotebookText($("plan"), g.plan || "尚无计划");
   $("notes").textContent = g.notes || "尚无经验笔记";
   const bind = $("binding");
-  if (!bind.contains(document.activeElement)) {
+  if (!remote && !bind.contains(document.activeElement)) {
     options(
       $("provider"),
       [{ id: "", name: "请选择模型" }, ...state.providers],
@@ -461,8 +474,8 @@ function render() {
   if (Number(lev.value) > Number(g.leverage)) lev.value = g.leverage;
   $("leverage-hint").textContent =
     `本局上限 ${g.leverage}×；杠杆越高，同样价格波动带来的盈亏越大。`;
-  $("deposit").hidden = !g.allow_deposit;
-  $("deposit-disabled").hidden = !!g.allow_deposit;
+  $("deposit").hidden = !remote && !g.allow_deposit;
+  $("deposit-disabled").hidden = remote || !!g.allow_deposit;
   $("loan-permission").textContent = g.loan_enabled
     ? "本局允许借用虚拟资金"
     : "本局未开启虚拟借款";
@@ -478,6 +491,14 @@ function render() {
         (b.disabled =
           g.status === "ended" || (b.value === "borrow" && !g.loan_enabled)),
     );
+  if (remote) {
+    for (const button of document.querySelectorAll("#trade button[type=submit], #loan button[type=submit], #deposit button[type=submit], #decide")) {
+      const prohibited = !button.closest("#trade") || !g.trade;
+      button.title = prohibited ? "管理员已禁止此操作" : "";
+      button.dataset.portalProhibited = String(prohibited);
+      if (prohibited) button.disabled = false;
+    }
+  }
   estimate();
   renderChart();
   refreshRequired();
@@ -513,6 +534,7 @@ $("pair").onchange = () => {
 };
 $("refresh").onclick = load;
 $("decide").onclick = async () => {
+  if (remote) return message("管理员已禁止此操作", true);
   try {
     message("正在提交看盘任务…");
     await post("decision", { game: gid });
@@ -530,7 +552,7 @@ function renderDecision() {
   $("decision-result").hidden=!d.last_summary;
   $("decision-summary").textContent=d.last_summary||"";
 }
-setInterval(()=>{if(state?.current&&gid)renderDecision();},1000);
+setInterval(()=>{if(!remote&&state?.current&&gid)renderDecision();},1000);
 function submit(id, handler) {
   $(id).onsubmit = async (event) => {
     event.preventDefault();
@@ -664,7 +686,11 @@ function renderPositions(g, v, error) {
       action("close", { position: p.id, reason: "人类手动平仓" }).catch(
         () => {},
       );
-    close.disabled = g.status === "ended" || !v;
+    close.disabled = !(remote && !g.trade) && (g.status === "ended" || !v);
+    if (remote && !g.trade) {
+      close.title = "管理员已禁止此操作";
+      close.dataset.portalProhibited = "true";
+    }
     row.append(strip, close);
     card.append(
       row,
@@ -1024,7 +1050,31 @@ $("confirm-delete-user").onclick=async()=>{
     document.activeElement?.blur();await load();
   }catch{}
 };
-if (bridge) await bridge.ready();
+if (bridge) {
+  const session = await bridge.ready();
+  if (remote) {
+    document.addEventListener("click", event => {
+      if (!event.target.closest('[data-portal-prohibited="true"]')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      message("管理员已禁止此操作", true);
+    }, true);
+    const picker = node("select");
+    picker.setAttribute("aria-label", "交易实例");
+    const games = session.games || [];
+    options(picker, games);
+    gid = picker.value;
+    picker.onchange = () => {
+      gid = picker.value;
+      workspace("instances");
+      load();
+    };
+    const logout = node("button", "退出面板");
+    logout.type = "button";
+    logout.onclick = () => bridge.logout().catch(error => message(error.message, true));
+    document.querySelector(".header-actions").prepend(picker, logout);
+  }
+}
 await load();
 setInterval(() => {
   if (!document.hidden && !posting) load();

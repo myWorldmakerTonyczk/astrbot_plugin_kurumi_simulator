@@ -33,7 +33,7 @@ class PortalTests(unittest.IsolatedAsyncioTestCase):
             engine=self.engine, settings=lambda: {}, history=SimpleNamespace(page=page),
             instance_locks={}, identity=Identity(self.engine),
         )
-        DiaryStore(self.engine)
+        plugin.diary = SimpleNamespace(store=DiaryStore(self.engine))
         DecisionService(plugin)
         self.portal = Portal(plugin)
         plugin.portal = self.portal
@@ -100,6 +100,32 @@ class PortalTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(response.status, 200)
             response = await self.client.get(path, params={"game": self.other["id"]}, headers=read)
             self.assertEqual(response.status, 403)
+
+    async def test_shared_view_files_and_workspace_data(self):
+        response = await self.client.get("/workspace/", allow_redirects=False)
+        self.assertEqual(response.status, 302)
+        read = await self.exchange("read")
+        response = await self.client.get("/workspace/", headers=read)
+        self.assertIn("data-remote-workspace", await response.text())
+        for path, mime in (
+            ("assets/avatar.png", "image/png"),
+            ("assets/hero-green.png", "image/png"),
+            ("app.js", "text/javascript"),
+            ("style.css", "text/css"),
+        ):
+            response = await self.client.get("/workspace/" + path)
+            self.assertEqual((response.status, response.content_type), (200, mime))
+        self.assertEqual((await self.client.get("/workspace/assets/private.png")).status, 404)
+        for route in ("workspace", "history", "diaries"):
+            response = await self.client.get("/api/" + route, headers=read, params={"game": self.first["id"]})
+            self.assertEqual(response.status, 200)
+            response = await self.client.get("/api/" + route, headers=read, params={"game": self.other["id"]})
+            self.assertEqual(response.status, 403)
+        response = await self.client.get("/api/workspace", headers=read, params={"game": self.first["id"]})
+        game = (await response.json())["current"]["game"]
+        self.assertEqual(game["plan"], "本人的私人策略")
+        self.assertFalse(game["trade"])
+        self.assertNotIn("reference_umo", game)
 
     async def test_account_login_and_trade_require_owner_and_explicit_grant(self):
         owner = self.first["owner_id"]

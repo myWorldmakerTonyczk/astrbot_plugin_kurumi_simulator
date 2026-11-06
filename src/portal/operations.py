@@ -8,11 +8,11 @@ from ..core.trading import lock_for
 from ..diary.store import redact
 
 ACTIONS = {
-    "open": {"pair", "side", "units", "leverage", "sl", "tp"},
+    "open": {"pair", "side", "units", "margin", "leverage", "sl", "tp"},
     "close": {"position"},
     "protect": {"position", "sl", "tp"},
 }
-POSITION_FIELDS = ("id", "pair", "side", "units", "entry", "current", "pnl", "sl", "tp", "leverage")
+POSITION_FIELDS = ("id", "pair", "side", "units", "margin", "entry", "current", "pnl", "sl", "tp", "leverage")
 
 
 class Operations:
