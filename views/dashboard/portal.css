@@ -51,7 +51,7 @@ body { margin: 0; }
   box-shadow: 0 18px 55px #503b5020;
 }
 .portal-welcome-art {
-  background: #f5e9f0 url("/assets/portal-kurumi.webp") center / contain no-repeat;
+  background: #fdfafe url("/assets/portal-kurumi.webp") center / contain no-repeat;
   min-height: 310px;
 }
 .portal-welcome-content { padding: clamp(20px, 4vw, 48px); }
@@ -110,10 +110,6 @@ body { margin: 0; }
   background-image: linear-gradient(90deg,#f1e8ef 48%,#f1e8ef22 85%), url("/assets/portal-kurumi-header.webp");
   background-position: right 31%;
 }
-.portal-welcome-art {
-  background: linear-gradient(90deg, #faf5fa 2%, #faf5fa00 16%),
-    url("/assets/portal-kurumi.webp") 100% center / auto 108% no-repeat, #faf5fa;
-}
 .portal-desk-grid { grid-template-columns: minmax(110px,.65fr) minmax(0,3fr) minmax(245px,1.45fr); }
 .portal-desk-grid .portal-card { max-width: none; min-width: 0; }
 .desk-positions { grid-column: 2; }
@@ -148,5 +144,5 @@ body { margin: 0; }
   .desk-pairs > div { display: flex; flex-wrap: wrap; }
   .portal-banner { background-size: auto, auto 100%; }
   #portal-welcome { grid-template-columns: minmax(0,1fr); margin-top: 20px; }
-  .portal-welcome-art { min-height: 190px; background-position: right center; background-size: auto, cover; }
+  .portal-welcome-art { min-height: 190px; }
 }
