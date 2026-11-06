@@ -46,6 +46,7 @@ except ValueError:
     pass
 fixture = dict(
     diary_settings=diary_settings(),
+    portal=dict(enabled=True, active=True, origin="https://panel.example.test", bind="127.0.0.1", port=8791),
     decision_limits=decision_limits(),
     decision=dict(state="idle",next_allowed=0,last_summary="",error=""),
     llm_settings=llm_public(None),
@@ -331,6 +332,15 @@ with sync_playwright() as p:
     page.get_by_role("button", name="设置", exact=True).click()
     assert page.locator("#create").is_hidden()
     assert page.locator("#connection").is_hidden()
+    page.route("https://panel.example.test/api/health", lambda route: route.fulfill(
+        json={"service": "kurumi-user-portal", "ok": True},
+        headers={"Access-Control-Allow-Origin": "*"},
+    ))
+    page.locator('[data-settings-tab="portal"]').click()
+    assert page.locator("#portal-open-link").get_attribute("href") == "https://panel.example.test"
+    page.locator("#portal-check-link").click()
+    page.wait_for_function("document.querySelector('#portal-link-status').textContent.includes('连接成功')")
+    page.locator('[data-settings-tab="users"]').click()
     assert page.locator("#access-scaffold").is_visible()
     page.evaluate("window.fixture.workspace.users=[{id:'managed-user',name:'测试用户',bindings:[{type:'umo',value:'default:FriendMessage:123456789'}]}]")
     page.locator("#refresh").click()

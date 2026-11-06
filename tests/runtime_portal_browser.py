@@ -2,6 +2,7 @@
 
 import asyncio
 import ssl
+import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -74,6 +75,15 @@ async def smoke():
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 await page.goto(origin)
+                health = await page.request.get(origin + "/api/health", headers={"Origin": "https://admin.example.test"})
+                assert health.headers.get("access-control-allow-origin") == "*"
+                assert await health.json() == {"service": "kurumi-user-portal", "ok": True}
+                for asset in ("portal-kurumi.webp", "portal-kurumi-header.webp"):
+                    image = await page.request.get(origin + "/assets/" + asset)
+                    assert image.ok and image.headers["content-type"] == "image/webp"
+                if screenshot := os.environ.get("KURUMI_PORTAL_SCREENSHOT"):
+                    await page.screenshot(path=screenshot)
+
                 await page.locator("#portal-login [name=username]").fill(username)
                 await page.locator("#portal-login [name=password]").fill(password)
                 await page.get_by_role("button", name="登录模拟交易面板").click()

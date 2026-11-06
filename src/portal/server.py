@@ -15,6 +15,8 @@ COOKIE = "__Host-kurumi"
 DEFAULTS = dict(enabled=False, origin="", bind="127.0.0.1", port=8791)
 ROOT = Path(__file__).resolve().parents[2] / "views" / "dashboard"
 ASSETS = {
+    "portal-kurumi.webp": "assets/portal-kurumi.webp",
+    "portal-kurumi-header.webp": "assets/portal-kurumi-header.webp",
     "portal.js": "portal.js", "portal.css": "portal.css", "portal-trading.js": "portal-trading.js",
     "replay-panel.js": "replay-panel.js", "replay.css": "replay.css",
     "lightweight-charts.js": "vendor/lightweight-charts.js",
@@ -112,7 +114,7 @@ class Portal(Operations):
 
         app = web.Application(middlewares=[boundary], client_max_size=8192)
         app.add_routes([
-            web.get("/", self.index), web.get("/assets/{file}", self.asset),
+            web.get("/", self.index), web.get("/api/health", self.health), web.get("/assets/{file}", self.asset),
             web.post("/api/exchange", self.exchange), web.get("/api/session", self.session),
             web.post("/api/logout", self.logout), web.get("/api/review", self.review),
             web.post("/api/login", self.login), web.get("/api/account", self.account_state),
@@ -156,6 +158,12 @@ class Portal(Operations):
             runner, self.runner = self.runner, None
             await runner.cleanup()
 
+    async def health(self, request):
+        return web.json_response(
+            {"service": "kurumi-user-portal", "ok": True},
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+
     async def index(self, request):
         return web.FileResponse(ROOT / "portal.html")
 
@@ -164,7 +172,7 @@ class Portal(Operations):
         if not path:
             raise web.HTTPNotFound()
         suffix = Path(path).suffix
-        content_type = {".js": "text/javascript", ".css": "text/css", ".txt": "text/plain"}[suffix]
+        content_type = {".js": "text/javascript", ".css": "text/css", ".txt": "text/plain", ".webp": "image/webp"}[suffix]
         return web.FileResponse(ROOT / path, headers={"Content-Type": content_type})
 
     async def payload(self, request):

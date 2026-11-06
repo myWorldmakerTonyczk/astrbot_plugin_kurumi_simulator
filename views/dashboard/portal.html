@@ -17,6 +17,8 @@
     </header>
     <p id="portal-status" role="status"></p>
     <section id="portal-welcome" class="portal-card">
+      <div class="portal-welcome-art" aria-hidden="true"></div>
+      <div class="portal-welcome-content">
       <h2 id="portal-welcome-title">打开你的复盘</h2>
       <p id="portal-welcome-copy">在机器人私聊里领取账号和首次密码，或直接领取只读面板入口。</p>
       <form id="portal-login" method="post" action="/api/login">
@@ -25,6 +27,7 @@
         <button type="submit">登录模拟交易面板</button>
       </form>
       <button id="portal-exchange" type="button" hidden>打开只读面板</button>
+      </div>
     </section>
     <nav id="portal-tabs" class="portal-tabs" aria-label="用户面板" hidden>
       <label>交易实例 <select id="portal-instance"></select></label>
