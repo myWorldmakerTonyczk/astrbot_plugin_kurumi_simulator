@@ -145,6 +145,7 @@ function workspace(mode) {
   $("open-instance-settings").disabled = !gid;
   tradingNotices.setScope(
     inInstance &&
+      !$("quick-setup-dialog").open &&
       !$("create-instance-dialog").open &&
       !$("instance-settings-dialog").open &&
       !$("delete-instance-dialog").open
@@ -846,7 +847,7 @@ for (const form of [modelSettings.form, $("decision-settings"), $("connection")]
   form.addEventListener("input", () => { apiSaveStatus.textContent = "有未保存的修改"; });
   form.onsubmit = event => {
     event.preventDefault();
-    $("save-api-settings").click();
+    $(quickSetup.open ? "quick-setup-next" : "save-api-settings").click();
   };
 }
 $("reset-market-url").addEventListener("click", () => { apiSaveStatus.textContent = "有未保存的修改"; });
@@ -918,6 +919,11 @@ submit("binding", async (p) => {
   await load();
 });
 submit("create", async (p) => {
+  const status = $("quick-create-status");
+  if (!status.hidden && quickCreateStep !== "details") {
+    $("quick-create-next").click();
+    return;
+  }
   const pairs = [...$("pairs").querySelectorAll("input:checked")].map(
     (o) => o.value,
   );
@@ -926,24 +932,30 @@ submit("create", async (p) => {
   for (const k of ["profit", "loss", "floor", "drawdown"])
     if (p[k]) rules[k] = p[k];
   if (p.deadline) rules.deadline = Date.parse(p.deadline) / 1000;
-  const result = await post("command", {
-    action: "create",
-    options: {
-      name: p.name,
-      persona: p.persona,
-      auto: $("create-auto").checked,
-      user_binding: createOwnerBinding || collectUserBinding(p),
-      user_nickname: p.user_nickname || "",
-      initial: p.initial,
-      leverage: p.leverage,
-      fee_rate: p.fee_rate,
-      loan_enabled: $("create-loan-enabled").checked,
-      allow_deposit: $("allow-deposit").checked,
-      loan_limit: p.loan_limit,
-      pairs,
-      rules,
-    },
-  });
+  let result;
+  try {
+    result = await post("command", {
+      action: "create",
+      options: {
+        name: p.name,
+        persona: p.persona,
+        auto: $("create-auto").checked,
+        user_binding: createOwnerBinding || collectUserBinding(p),
+        user_nickname: p.user_nickname || "",
+        initial: p.initial,
+        leverage: p.leverage,
+        fee_rate: p.fee_rate,
+        loan_enabled: $("create-loan-enabled").checked,
+        allow_deposit: $("allow-deposit").checked,
+        loan_limit: p.loan_limit,
+        pairs,
+        rules,
+      },
+    });
+  } catch (error) {
+    if (!status.hidden) status.textContent = error.message;
+    throw error;
+  }
   gid = result.id;
 
   $("create-instance-dialog").close();
@@ -1065,25 +1077,160 @@ function renderManagedUsers() {
   userManager.render(multiplayer ? users : users.filter(user => user.id === main_user_id), main_user_id, multiplayer);
 }
 let createOwnerBinding = null;
-function openCreateInstance(group = null) {
+function openCreateInstance(group = null, quick = false) {
   const {users, multiplayer, main_user_id} = workspaceUsers();
   const ownerId = group?.id || (!multiplayer && main_user_id);
   const user = users.find(item => String(item.id) === ownerId);
   const binding = user?.bindings?.find(item => item.type === "umo");
-  if (user && !binding) {
+  if (user && !binding && !quick) {
     message("请先在用户与权限中为该用户添加私聊 UMO。", true);
     return;
   }
   createOwnerBinding = binding ? {type: "umo", values: [binding.value]} : null;
-  $("create-user-fields").hidden = !!user;
-  $("create-user-fields").disabled = !!user;
+  $("create-user-fields").hidden = !!binding;
+  $("create-user-fields").disabled = !!binding;
   $("create-owner").hidden = !user;
   $("create-owner").textContent = user ? "所属用户：" + user.name : "";
   options($("create-persona"), [{ id: "", name: "请选择人格" }, ...(state?.personas || [])], "");
   $("create-auto").checked = true;
+  quickCreateOwner = quick && user && !binding ? user.id : "";
+  $("quick-create-status").hidden = !quick;
+  $("create-caption").hidden = quick;
+  $("create-dialog-title").textContent = quick ? "快速开始" : "新建交易实例";
+  if (quick) showQuickCreateStep("persona");
+  else {
+    $("create-persona-step").hidden = $("create-details-step").hidden = false;
+    $("quick-create-next").hidden = $("quick-create-back").hidden = true;
+  }
   $("create-instance-dialog").showModal();
   tradingNotices.setScope("");
 }
+const quickSetup = $("quick-setup-dialog");
+let quickSetupQueue = [];
+let quickSetupStep;
+let quickCreateOwner = "";
+let quickCreateStep;
+
+function restoreQuickSetupForm() {
+  if (!quickSetupStep) return;
+  quickSetupStep.placeholder.replaceWith(quickSetupStep.section);
+  quickSetupStep = null;
+}
+
+function nextQuickSetup() {
+  restoreQuickSetupForm();
+  const step = quickSetupQueue.shift();
+  if (!step) {
+    if (quickSetup.open) quickSetup.close();
+    openCreateInstance(null, true);
+    return;
+  }
+  const form = step === "model" ? modelSettings.form : $("connection");
+  const section = form.closest("section");
+  const placeholder = document.createComment("quick start settings");
+  section.replaceWith(placeholder);
+  $("quick-setup-fields").append(section);
+  quickSetupStep = {step, form, section, placeholder};
+  $("quick-setup-title").textContent = step === "model" ? "快速开始 · 配置决策模型" : "快速开始 · 配置行情";
+  $("quick-setup-status").textContent = step === "model" && !state.providers.length
+    ? "AstrBot 尚无可选模型。请填写自定义接口，或先在 AstrBot 添加模型提供商。"
+    : "";
+  if (step === "model" && !state.providers.length && !modelSettings.dirty) {
+    form.elements.mode.value = "custom";
+    modelSettings.fields();
+  }
+  if (!quickSetup.open) quickSetup.showModal();
+  tradingNotices.setScope("");
+}
+
+$("quick-start").onclick = () => {
+  if (!state || loading || posting) return;
+  const model = state.llm_settings;
+  const connection = state.connection;
+  quickSetupQueue = [];
+  if (model?.mode === "custom" ? !model.api_base || !model.model : !state.providers.some(item => item.id === model?.provider_id)) {
+    quickSetupQueue.push("model");
+  }
+  if (connection.market_source === "oanda" && (!connection.configured || !connection.market_account)) {
+    quickSetupQueue.push("market");
+  }
+  nextQuickSetup();
+};
+
+quickSetup.addEventListener("close", restoreQuickSetupForm);
+$("quick-setup-next").onclick = async event => {
+  if (!quickSetupStep || posting) return;
+  const {step, form} = quickSetupStep;
+  const button = event.currentTarget;
+  const status = $("quick-setup-status");
+  if (!form.reportValidity()) return;
+  button.disabled = true;
+  try {
+    if (step === "model") {
+      await modelSettings.save(modelSettings.values());
+    } else {
+      const values = Object.fromEntries(new FormData(form));
+      if (values.market_source === "oanda" && (!values.market_account?.trim() ||
+          (!values.market_key?.trim() && !state.connection.configured))) {
+        throw Error("请填写 OANDA 账户 ID 和访问令牌，或改选免注册行情源。");
+      }
+      await post("settings", values);
+      connectionDirty = false;
+      form.elements.market_key.value = "";
+    }
+    await load();
+    if (quickSetup.open) nextQuickSetup();
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+};
+
+function showQuickCreateStep(step) {
+  quickCreateStep = step;
+  $("create-dialog-title").textContent = "快速开始 · " + {persona:"选择人格", binding:"绑定用户", details:"创建交易实例"}[step];
+  $("create-persona-step").hidden = step !== "persona";
+  $("create-user-fields").hidden = step !== "binding";
+  $("create-details-step").hidden = step !== "details";
+  $("quick-create-next").hidden = step === "details";
+  $("quick-create-back").hidden = step === "persona";
+  $("quick-create-status").textContent = step === "persona" && !state.personas.length
+    ? "请先在 AstrBot 的人格设定中创建一个人格。"
+    : "";
+}
+
+$("quick-create-back").onclick = () => {
+  showQuickCreateStep(quickCreateStep === "details" && !createOwnerBinding ? "binding" : "persona");
+};
+
+$("quick-create-next").onclick = async event => {
+  if (quickCreateStep === "persona") {
+    if (!$("create-persona").reportValidity()) return;
+    showQuickCreateStep(createOwnerBinding ? "details" : "binding");
+    return;
+  }
+  if (!$("bound-umos").reportValidity()) return;
+  const umo = $("bound-umos").value.trim();
+  if (!/^[^:]+:FriendMessage:[^:]+$/.test(umo)) {
+    $("quick-create-status").textContent = "请输入 /sid 返回的完整私聊 UMO。";
+    return;
+  }
+  if (quickCreateOwner) {
+    event.currentTarget.disabled = true;
+    try {
+      await post("command", {action:"update_user_umo", user_id:quickCreateOwner, umo});
+      createOwnerBinding = {type:"umo", values:[umo]};
+    } catch (error) {
+      $("quick-create-status").textContent = error.message;
+      return;
+    } finally {
+      $("quick-create-next").disabled = false;
+    }
+  }
+  showQuickCreateStep("details");
+};
+
 for (const button of document.querySelectorAll("[data-new-instance]"))
   button.onclick = () => openCreateInstance();
 for (const button of document.querySelectorAll("[data-close-dialog]"))

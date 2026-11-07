@@ -120,9 +120,9 @@
             />
             <h2>给她一笔资金，看看故事会怎样。</h2>
             <p>
-              先创建游戏并连接行情，再选择她的人格和决策模型。<br />每次交易、每个理由，都留在这本日记里。
+              快速开始会逐步补齐模型、人格和私聊绑定。<br />每次交易、每个理由，都留在这本日记里。
             </p>
-            <button data-new-instance class="primary">创建第一局</button>
+            <button type="button" id="quick-start" class="primary">快速开始</button>
           </div>
           <div id="instance-directory" class="central-directory"></div>
         </section>
@@ -656,6 +656,15 @@
       </main>
     </div>
 
+    <dialog id="quick-setup-dialog" class="instance-config-dialog" aria-labelledby="quick-setup-title">
+      <div class="config-dialog-heading">
+        <h2 id="quick-setup-title">快速开始</h2>
+        <button type="button" data-close-dialog="quick-setup-dialog">取消</button>
+      </div>
+      <div id="quick-setup-fields"></div>
+      <p id="quick-setup-status" role="status" class="caption"></p>
+      <button type="button" id="quick-setup-next" class="primary">保存并继续</button>
+    </dialog>
     <dialog
       id="create-instance-dialog"
       class="instance-config-dialog"
@@ -668,14 +677,16 @@
         </button>
       </div>
       <section class="panel">
-        <p class="caption">
+        <p id="create-caption" class="caption">
           只设置这一局的资金、杠杆、货币对和挑战规则。创建后可在实例设置中绑定AI。
         </p>
         <form id="create">
+          <div id="create-persona-step" class="quick-create-fields">
           <label>AstrBot 人格<select id="create-persona" name="persona" required>
             <option value="">请选择人格</option>
           </select><span class="caption">必须先选择人格，创建后用于自主看盘和每日日记。</span></label>
           <label class="check"><input id="create-auto" name="auto" type="checkbox" checked />开启定时自主看盘（默认每小时一次）</label>
+          </div>
 
           <p id="create-owner" class="caption" hidden></p>
           <fieldset id="create-user-fields" class="user-binding-fields">
@@ -684,7 +695,7 @@
             </legend>
             <label>私聊 UMO<input id="bound-umos" name="bound_umos" required
               placeholder="default:FriendMessage:123456789">
-              <span class="caption">在目标私聊中发送 /sid，复制完整的会话 UMO。每位用户只能绑定一个。</span>
+              <span class="caption">一般为 人格名称:FriendMessage:QQ号。在目标私聊发送 /sid 获取实际的完整 UMO，以返回值为准。每位用户只能绑定一个。</span>
             </label>
             <label
               >用户昵称（选填）<input
@@ -697,6 +708,7 @@
             >
           </fieldset>
 
+          <div id="create-details-step" class="quick-create-fields">
           <label
             >实例名称<input
               name="name"
@@ -801,6 +813,10 @@
             /></label>
           </details>
           <button class="primary" type="submit">创建交易实例</button>
+          </div>
+          <button type="button" id="quick-create-back" hidden>上一步</button>
+          <button type="button" id="quick-create-next" class="primary" hidden>下一步</button>
+          <p id="quick-create-status" role="status" class="caption" hidden></p>
         </form>
       </section>
     </dialog>

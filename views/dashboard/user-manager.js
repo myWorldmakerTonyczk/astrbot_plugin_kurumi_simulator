@@ -135,7 +135,7 @@ export class UserManager {
         umo.placeholder = "default:FriendMessage:123456789";
         const currentUmo = bindings[0]?.value || "";
         umo.value = this.drafts.get(user.id)?.umo ?? currentUmo;
-        umoLabel.append(umo);
+        umoLabel.append(umo, make("span", "一般为 人格名称:FriendMessage:QQ号。以目标私聊中 /sid 返回的完整 UMO 为准。", "caption"));
         const password = make("input");
         password.type = "text";
         password.autocomplete = "new-password";
