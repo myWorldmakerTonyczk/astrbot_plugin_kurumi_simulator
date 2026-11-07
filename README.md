@@ -83,4 +83,6 @@ AstrBot插件视图内提供交易工作台、交易日志、计划与经验。K
 
 ## 联系方式
 
+QQ：1756908053
+
 邮箱：[tonyczk3032@outlook.com](mailto:tonyczk3032@outlook.com)
