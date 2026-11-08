@@ -81,6 +81,8 @@
             <button type="button" id="portal-reset">重置用户网页账号</button>
           </details>
         </div>
+        <div id="market-break-notice" class="market-break-notice" role="status" hidden></div>
+        <div id="pause-notice" class="pause-notice" role="status" hidden></div>
         <div id="notice" role="status" aria-live="polite">
           正在连接 AstrBot…
         </div>
@@ -132,6 +134,7 @@
             <div class="account-top">
               <span id="game-status"></span>
               <div>
+                <button type="button" id="pause-automation">暂停操作</button>
                 <button id="decide" class="primary">让她看一次盘</button>
               </div>
             </div>
@@ -510,6 +513,15 @@
               <section class="panel">
               <h3>看盘频率与风险事件</h3>
               <form id="decision-settings">
+                <label class="check"><input type="checkbox" name="weekend_pause" checked>休市时段停止自动看盘（默认开启）</label>
+                <p class="caption">默认按纽约时间周五 16:59 至周日 17:05，自动跟随夏令时。仅停止自动看盘，手动看盘和日记可继续。</p>
+                <label>休息时区<input name="weekend_zone" value="America/New_York" required></label>
+                <div class="form-grid">
+                  <label>开始日<select name="weekend_start_day"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4" selected>周五</option><option value="5">周六</option><option value="6">周日</option></select></label>
+                  <label>开始时间<input type="time" name="weekend_start_time" value="16:59" required></label>
+                  <label>结束日<select name="weekend_end_day"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6" selected>周日</option></select></label>
+                  <label>结束时间<input type="time" name="weekend_end_time" value="17:05" required></label>
+                </div>
                 <label>每实例两次看盘至少间隔（分钟）<input name="cooldown" type="number" min="10" max="1440" value="10" required></label>
                 <label>每实例每小时最多看盘任务数<input name="hourly_limit" type="number" min="1" max="6" value="6" required></label>
                 <p class="caption">手动、定时和风险触发共用上限，失败尝试也计数。多条风险事件合并排队；日记和普通聊天不计入此看盘额度。</p>

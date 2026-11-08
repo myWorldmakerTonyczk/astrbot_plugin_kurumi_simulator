@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from .settings import settings, bounds, due_before
 from .store import DiaryStore
+from ..core.availability import run_automatic
 
 
 class DiaryService:
@@ -31,6 +32,8 @@ class DiaryService:
         if key == self.scan_key:
             return
         for game in self.plugin.engine.games():
+            if game["status"] == "paused":
+                continue
             day = datetime.fromtimestamp(
                 game["created"], ZoneInfo(config["timezone"])
             ).date()
@@ -56,10 +59,11 @@ class DiaryService:
             if not config["enabled"]:
                 return False
             now = time.time() if now is None else now
-            row = self.store.db.execute(
-                "SELECT * FROM diaries WHERE status IN ('pending','failed') AND retry_at<=? ORDER BY day,updated,game LIMIT 1",
+            rows = self.store.db.execute(
+                "SELECT * FROM diaries WHERE status IN ('pending','failed') AND retry_at<=? ORDER BY day,updated,game",
                 (now,),
-            ).fetchone()
+            ).fetchall()
+            row = next((row for row in rows if self.plugin.engine.get(row["game"])["status"] != "paused"), None)
             if not row:
                 return False
             job = dict(row)
@@ -86,7 +90,9 @@ class DiaryService:
                     from .writer import write
                 else:
                     write = self.writer
-                content = await write(self.plugin, job, config)
+                content = await run_automatic(self.plugin, job["game"], write(self.plugin, job, config))
+                if self.plugin.engine.get(job["game"])["status"] == "paused":
+                    raise ValueError("实例已暂停，恢复后重试日记")
                 completed = time.time()
                 with self.plugin.engine.transaction():
                     saved = self.store.finish(job["game"], job["day"], content, completed)

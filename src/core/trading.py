@@ -53,6 +53,8 @@ def public_snapshot(plugin, gid, log_limit=30, include_details=False):
 
 
 async def execute(plugin, gid, action, body, *, already_locked=False):
+    from .availability import require_active
+    require_active(plugin.engine.get(gid))
     if action == "state":
         return public_snapshot(plugin, gid, body.get("log_limit", 30), body.get("include_details", False))
     plugin.engine.get(gid)

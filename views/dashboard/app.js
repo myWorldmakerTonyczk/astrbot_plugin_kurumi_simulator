@@ -344,6 +344,10 @@ function journal(container, logs) {
   }
 }
 function render() {
+  $("market-break-notice").hidden = !state.market_closed && !state.automatic_break;
+  $("market-break-notice").textContent = state.market_closed
+    ? "外汇周末休市 · 行情可能停止更新" + (state.automatic_break ? " · 自动看盘正在休息" : "")
+    : "当前处于自定义休息时段 · 已暂停自动看盘";
   if (remote) {
     diaryPanel.render(null, gid);
   } else {
@@ -354,7 +358,8 @@ function render() {
     if(state.decision_limits&&!decisionSettingsDirty) {
       const form=$("decision-settings"),v=state.decision_limits;
       form.elements.cooldown.value=v.cooldown/60;form.elements.hourly_limit.value=v.hourly_limit;
-      for(const key of ["stop_loss","take_profit","liquidation","margin_call","end"])form.elements[key].checked=v[key];
+      for(const key of ["stop_loss","take_profit","liquidation","margin_call","end","weekend_pause"])form.elements[key].checked=v[key];
+      for(const key of ["weekend_zone","weekend_start_day","weekend_start_time","weekend_end_day","weekend_end_time"])form.elements[key].value=v[key];
     }
     instanceNotices.render(state.instance_access, gid);
     portalSettings.render(state.portal, gid, state.portal_instance);
@@ -379,6 +384,7 @@ function render() {
   workspace(workspaceMode);
   const selected = gid && state.current?.game.id === gid ? state.current : null;
   $("desk").hidden = !selected;
+  $("pause-notice").hidden = selected?.game.status !== "paused";
   refreshRequired();
   if (!selected) {
     $("mood-scene").src = "./assets/neutral.png";
@@ -405,7 +411,7 @@ function render() {
   $("title").textContent =
     workspaceMode === "settings" ? "久留美 · 设置" : g.name;
   $("game-status").textContent =
-    ({ running: "运行中", paused: "自主操作已暂停", ended: "本局已结束" }[
+    ({ running: "运行中", paused: "实例已暂停", ended: "本局已结束" }[
       g.status
     ] || g.status) +
     " · 第 " +
@@ -469,6 +475,10 @@ function render() {
     bind.elements.provider.required=needsInstanceModel;
     bind.elements.persona.required=true;
   }
+  const paused = g.status === "paused";
+  $("pause-notice").textContent = "本实例已暂停 · 自动看盘、日记、主动通知和交易工具均暂停。已有持仓继续按行情检查止盈止损及强平。";
+  $("pause-automation").textContent = paused ? "恢复操作" : "暂停操作";
+  $("pause-automation").disabled = g.status === "ended";
   renderPositions(g, v, selected.market_error);
   renderWatch();
   const lev = $("order-leverage");
@@ -494,7 +504,7 @@ function render() {
           g.status === "ended" || (b.value === "borrow" && !g.loan_enabled)),
     );
   if (remote) {
-    for (const button of document.querySelectorAll("#trade button[type=submit], #loan button[type=submit], #deposit button[type=submit], #decide")) {
+    for (const button of document.querySelectorAll("#trade button[type=submit], #loan button[type=submit], #deposit button[type=submit], #decide, #pause-automation")) {
       const prohibited = !button.closest("#trade") || !g.trade;
       button.title = prohibited ? "管理员已禁止此操作" : "";
       button.dataset.portalProhibited = String(prohibited);
@@ -535,6 +545,12 @@ $("pair").onchange = () => {
   renderChart();
 };
 $("refresh").onclick = load;
+$("pause-automation").onclick = async () => {
+  if (remote) return message("管理员已禁止此操作", true);
+  try {
+    await action(state.current.game.status === "paused" ? "resume" : "pause", {});
+  } catch {}
+};
 $("decide").onclick = async () => {
   if (remote) return message("管理员已禁止此操作", true);
   try {
@@ -546,8 +562,9 @@ $("decide").onclick = async () => {
 function renderDecision() {
   const d=state?.decision || {state:"idle",next_allowed:0};
   const active=["pending","running"].includes(d.state);
+  const paused=state?.current?.game.status==="paused";
   const seconds=Math.max(0,Math.ceil(d.next_allowed-Date.now()/1000));
-  $("decide").disabled=posting||active||seconds>0;
+  $("decide").disabled=posting||paused||active||seconds>0;
   $("decide").dataset.permissionDisabled=String(active||seconds>0);
   $("decide").textContent=d.state==="running"?"她正在看盘…":d.state==="pending"?"看盘已排队":seconds>0?`冷却中 ${Math.ceil(seconds/60)} 分钟`:"让她看一次盘";
   $("decision-progress").textContent=d.state==="running"?"正在读取账户、聊天和日志并调用模型。":d.state==="pending"?`等待队列与频率额度${seconds?`，约 ${Math.ceil(seconds/60)} 分钟后可开始`:""}。`:d.state==="failed"?`上次看盘失败：${d.error}`:d.state==="success"?"上次看盘已完成，结果与操作理由已保存。":"点击后异步排队，可在此查看进度和结果。";
@@ -883,7 +900,9 @@ $("save-api-settings").onclick = async event => {
     if (decisionSettingsDirty) {
       const fields = decision.elements;
       const values = {cooldown: Math.round(Number(fields.cooldown.value) * 60), hourly_limit: Number(fields.hourly_limit.value)};
-      for (const key of ["stop_loss", "take_profit", "liquidation", "margin_call", "end"]) values[key] = fields[key].checked;
+      for (const key of ["stop_loss", "take_profit", "liquidation", "margin_call", "end", "weekend_pause"]) values[key] = fields[key].checked;
+      for (const key of ["weekend_zone", "weekend_start_time", "weekend_end_time"]) values[key] = fields[key].value;
+      for (const key of ["weekend_start_day", "weekend_end_day"]) values[key] = Number(fields[key].value);
       await post("decision-settings", values);
       decisionSettingsDirty = false;
       saved.push(section);

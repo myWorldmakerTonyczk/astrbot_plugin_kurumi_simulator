@@ -133,7 +133,7 @@ class DecisionTests(unittest.IsolatedAsyncioTestCase):
             self.engine.db.execute("SELECT 1 FROM decision_jobs").fetchone()
         )
 
-    def test_limits_and_old_pause_migration(self):
+    def test_limits_and_pause_survives_reload(self):
         for changes in ({"cooldown": 599}, {"hourly_limit": 7}, {"stop_loss": "yes"}):
             with self.assertRaises(ValueError):
                 settings(changes)
@@ -142,8 +142,8 @@ class DecisionTests(unittest.IsolatedAsyncioTestCase):
         self.engine.save(game)
         DecisionService(self.plugin)
         migrated = self.engine.get(game["id"])
-        self.assertEqual(migrated["status"], "running")
-        self.assertFalse(migrated["auto"])
+        self.assertEqual(migrated["status"], "paused")
+        self.assertTrue(migrated["auto"])
 
     async def test_disabling_periodic_cancels_waiting_timer_only(self):
         self.service.enqueue(self.game["id"], "定时看盘", now=1000)

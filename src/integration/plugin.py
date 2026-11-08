@@ -74,6 +74,10 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
         settings.setdefault("history_source", "frankfurter")
         return settings
 
+    def market_availability(self):
+        from ..core.availability import status
+        return status(self.settings().get("decision_limits"))
+
     def authorized(self):
         # Fail closed even if a host integration accidentally exposes a route.
         return bool(getattr(request, "username", None))
@@ -248,6 +252,7 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
                 providers=providers,
                 personas=personas,
                 market_error=self.market.error,
+                **self.market_availability(),
                 runtime_error=(
                     self.engine.get(gid).get("last_analysis_error", "")
                     if exists
@@ -289,7 +294,15 @@ class KurumiMixin(DiaryApiMixin, SettingsApiMixin, PortalApiMixin):
             if not isinstance(body, dict):
                 raise ValueError("请求必须为对象")
             if body.get("action") in ("pause", "resume"):
-                raise ValueError("暂停按钮已移除，请在实例设置中管理定时自主看盘")
+                game = self.engine.get(body["game"])
+                if game["status"] == "ended":
+                    raise ValueError("本局已结束")
+                result = self.engine.action(game["id"], body["action"], {}, "human")
+                if body["action"] == "pause":
+                    for task in list(getattr(self, "automatic_tasks", {}).get(game["id"], ())):
+                        task.cancel()
+                self.diary.scan_key = None
+                return json_response(result)
             if body.get("action") == "update_pairs":
                 return json_response(self.engine.update_pairs(body["game"], body.get("pairs")))
             if body.get("action") == "create":

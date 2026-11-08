@@ -9,6 +9,7 @@ from ..core.replay_records import decision_scope
 from ..users.policy import effective
 from ..diary.store import redact
 from .decision_settings import settings
+from ..core.availability import automatic_break, require_active, run_automatic
 
 
 class DecisionService:
@@ -33,12 +34,6 @@ class DecisionService:
                 "INSERT OR IGNORE INTO decision_cursor VALUES(?,?)",
                 (game["id"], self.last_seq(game["id"])),
             )
-            if game["status"] == "paused":
-                game.update(status="running", auto=False)
-                plugin.engine.save(game)
-                plugin.engine.log(
-                    game, "system", "bind", "移除旧暂停状态，定时自主看盘保持关闭", {}
-                )
 
     def config(self):
         return settings(self.plugin.settings().get("decision_limits"))
@@ -96,7 +91,7 @@ class DecisionService:
         ).fetchone()
 
     def enqueue(self, gid, trigger, events=None, now=None):
-        self.plugin.engine.get(gid)
+        require_active(self.plugin.engine.get(gid))
         now = time.time() if now is None else now
         events = events or []
         row = self.db.execute(
@@ -124,6 +119,7 @@ class DecisionService:
 
     def request_manual(self, gid, now=None):
         game = self.plugin.engine.get(gid)
+        require_active(game)
         active = self.active(gid)
         if active and active["state"] == "pending" and active["trigger"] == "定时看盘":
             self.db.execute(
@@ -187,7 +183,7 @@ class DecisionService:
                         )
                     )
             with self.plugin.engine.transaction():
-                if events:
+                if events and game["status"] != "paused" and not automatic_break(now, config):
                     self.enqueue(game["id"], "风险事件复盘", events, now)
                 self.db.execute(
                     "INSERT OR REPLACE INTO decision_cursor VALUES(?,?)",
@@ -195,6 +191,7 @@ class DecisionService:
                 )
                 if (
                     game["auto"]
+                    and not automatic_break(now, config)
                     and game["status"] == "running"
                     and now - game["last_decision"]
                     >= effective(self.plugin.engine, game)["effective_interval"]
@@ -233,6 +230,9 @@ class DecisionService:
             for row in self.db.execute(
                 "SELECT * FROM decision_jobs WHERE state='pending' ORDER BY created,id"
             ).fetchall():
+                game = self.plugin.engine.get(row["game"])
+                if game["status"] == "paused" or (row["trigger"] != "手动看盘" and automatic_break(now, self.config())):
+                    continue
                 if (
                     row["trigger"] == "定时看盘"
                     and not self.plugin.engine.get(row["game"])["auto"]
@@ -267,9 +267,9 @@ class DecisionService:
                     decide = self.runner
                 scope = decision_scope.set((gid, selected["id"]))
                 try:
-                    result = await decide(
+                    result = await run_automatic(self.plugin, gid, decide(
                         self.plugin, gid, selected["trigger"], events=json.loads(selected["events"])
-                    )
+                    ))
                 finally:
                     decision_scope.reset(scope)
                 self.db.execute(

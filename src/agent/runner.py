@@ -317,6 +317,8 @@ async def decide(plugin, gid, trigger="手动看盘", *, events=None):
             ),
             timeout=120,
         )
+        from ..core.availability import require_active
+        require_active(plugin.engine.get(gid))
         summary = str(
             getattr(response, "completion_text", "") or "已完成看盘，未提供文字摘要"
         )[:6000]

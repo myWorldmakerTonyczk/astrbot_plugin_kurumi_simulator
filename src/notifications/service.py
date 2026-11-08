@@ -131,6 +131,8 @@ class NotificationService:
                 game = self.plugin.engine.get(gid)
             except ValueError:
                 continue
+            if game["status"] == "paused":
+                continue
             preferences = config(game)
             if not self.enabled(preferences, row["kind"]):
                 self.db.execute(

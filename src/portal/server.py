@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 from aiohttp import web
 
 from ..core.replay import review
+from ..core.availability import status as availability_status
 from ..core.engine import PAIRS
 from ..market_data.history import identity
 from ..core.journal import journal
@@ -356,6 +357,7 @@ class Portal(Operations):
             current=dict(game=public_game, valuation=valuation, quotes=snapshot["quotes"],
                          market_error="行情暂不可用" if snapshot["market_error"] else "",
                          logs=[self.public_log(row) for row in self.plugin.engine.logs(game["id"], limit=4)]),
+            **availability_status(config.get("decision_limits")),
             pairs=PAIRS, connection=dict(history_source=config.get("history_source", "frankfurter")),
             market_identity=identity(config),
             history_feeds={kind: identity(dict(config, history_source=kind)) for kind in ("market", "frankfurter")},
