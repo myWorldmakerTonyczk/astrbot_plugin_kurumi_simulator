@@ -128,7 +128,6 @@ function workspace(mode) {
     .querySelector(".workspace")
     .classList.toggle("catalog-mode", catalog);
   $("instance-context").hidden = !inInstance;
-  if (!inInstance) $("portal-access").open = false;
   document.querySelector(".character-banner").hidden = !inInstance;
   const page = mode === "settings" ? "setup" : gid ? instancePage : "catalog";
   for (const section of document.querySelectorAll("[data-page]"))

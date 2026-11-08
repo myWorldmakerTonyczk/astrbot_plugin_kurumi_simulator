@@ -6,41 +6,6 @@ export class PortalSettings {
     this.openLink = document.getElementById("portal-open-link");
     this.linkStatus = document.getElementById("portal-link-status");
     this.check.onclick = () => this.checkLink();
-    this.revoke = document.getElementById("portal-revoke");
-    this.trade = document.getElementById("portal-trade");
-    this.reset = document.getElementById("portal-reset");
-    this.access = document.getElementById("portal-access");
-    this.account = document.getElementById("portal-account-name");
-    this.umos = document.getElementById("portal-umos");
-    this.umoForm = document.getElementById("portal-umo-form");
-    this.umos.oninput = () => { this.bindingDirty = true; };
-    this.umoForm.onsubmit = async event => {
-      event.preventDefault();
-      const gid = this.gid;
-      if (!gid || !window.confirm("更改领取私聊会撤销该用户已发的面板链接并重置网页账号。确认保存？")) return;
-      const umos = this.umos.value.split("\n").map(line => line.trim()).filter(Boolean);
-      const button = event.submitter;
-      button.disabled = true;
-      try {
-        await post("portal-settings", {binding_game: gid, umos});
-        if (this.gid === gid) this.bindingDirty = false;
-        await reload();
-      } catch {}
-      finally { button.disabled = false; }
-    };
-    this.trade.onchange = async () => {
-      const gid = this.gid, allowed = this.trade.checked;
-      this.trade.disabled = true;
-      try { await post("portal-settings", {trade_game: gid, allowed}); await reload(); }
-      catch { if (this.gid === gid) this.trade.checked = !allowed; }
-      finally { this.trade.disabled = false; }
-    };
-    this.reset.onclick = async () => {
-      const gid = this.gid;
-      if (!gid || !window.confirm("重置后，这位用户原来的网页账号和登录会话会立即失效。确认重置？")) return;
-      try { await post("portal-settings", {reset_account: gid}); await reload(); }
-      catch {}
-    };
     this.dirty = false;
     this.form.oninput = () => { this.dirty = true; };
     this.form.onsubmit = async event => {
@@ -58,12 +23,7 @@ export class PortalSettings {
       } catch {}
       finally { button.disabled = false; }
     };
-    this.revoke.onclick = async () => {
-      const gid = this.gid;
-      if (!gid || !window.confirm("撤销此实例所有临时链接和只读浏览器会话？")) return;
-      try { await post("portal-settings", {revoke_game: gid}); await reload(); }
-      catch {}
-    };
+
   }
 
   async checkLink() {
@@ -89,15 +49,7 @@ export class PortalSettings {
     }
   }
 
-  render(config, gid, instance) {
-    if (this.gid !== gid) this.bindingDirty = false;
-    this.gid = gid;
-    if (!this.bindingDirty) this.umos.value = (instance?.chat_umos || []).join("\n");
-    this.access.hidden = !gid || !instance?.owned;
-    this.revoke.disabled = !gid;
-    this.reset.disabled = !instance?.username;
-    if (!this.trade.disabled) this.trade.checked = !!instance?.trade;
-    this.account.textContent = instance?.username ? "网页账号 " + instance.username : "用户尚未领取网页账号";
+  render(config) {
     if (!config) return;
     const origin = config.origin?.startsWith("https://") ? config.origin : "";
     if (this.origin !== origin) {

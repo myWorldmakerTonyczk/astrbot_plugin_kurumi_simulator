@@ -6,20 +6,13 @@ from ..diary.store import redact
 def chat_owner(plugin, event):
     if getattr(getattr(event, "platform_meta", None), "name", "") == "kurumi_silent":
         raise ValueError("请在已绑定的私聊领取面板")
-    umo, _, _ = plugin.identity.event_scope(event)
-    accounts = plugin.portal.accounts
-    granted = accounts.owner_for_umo(umo)
+    # Delegated portal_chat grants remain stored for future use, but the current
+    # UI only supports the instance owner's independently bound private chat.
+    plugin.identity.event_scope(event)
     try:
-        normal = plugin.identity.principal(event)[0]
-    except ValueError:
-        normal = None
-    if granted and normal and granted != normal:
-        raise ValueError("此私聊的用户绑定有冲突，请联系管理员")
-    if granted:
-        return granted
-    if normal and not accounts.chat_umos(normal):
-        return normal
-    raise ValueError("请在管理员授权的 QQ 或 UMO 私聊领取面板")
+        return plugin.identity.principal(event)[0]
+    except ValueError as exc:
+        raise ValueError("请在实例所属用户已绑定的私聊中领取面板") from exc
 
 
 def chat_game(plugin, event, owner, instance_id=""):

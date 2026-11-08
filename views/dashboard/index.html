@@ -70,24 +70,6 @@
             <span id="instance-breadcrumb" class="caption"></span>
             <button type="button" id="open-instance-settings">实例设置</button>
           </div>
-          <details id="portal-access" class="portal-access-card" hidden>
-            <summary>用户网页权限</summary>
-            <div class="portal-access-content">
-              <p class="caption">管理此实例的远程面板访问与网页交易权限。</p>
-              <p id="portal-account-name" class="portal-account-caption"></p>
-              <form id="portal-umo-form">
-                <label for="portal-umos">领取面板的私聊 UMO</label>
-                <textarea id="portal-umos" rows="2" placeholder="default:FriendMessage:123456789"></textarea>
-                <p class="caption">每行一个。填写后仅这些私聊可领取面板；留空沿用用户已有的绑定。</p>
-                <button type="submit">保存领取私聊</button>
-              </form>
-              <label class="check"><input type="checkbox" id="portal-trade">允许该用户在网页模拟交易</label>
-              <div class="portal-access-actions">
-                <button type="button" id="portal-revoke">撤销只读链接</button>
-                <button type="button" id="portal-reset">重置用户网页账号</button>
-              </div>
-            </div>
-          </details>
         </div>
         <div id="market-break-notice" class="market-break-notice" role="status" hidden></div>
         <div id="pause-notice" class="pause-notice" role="status" hidden></div>

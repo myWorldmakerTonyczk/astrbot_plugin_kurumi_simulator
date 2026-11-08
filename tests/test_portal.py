@@ -12,8 +12,6 @@ from src.diary.store import DiaryStore
 from src.portal.server import COOKIE, Portal
 from src.users.identity import Identity
 from src.portal.chat import chat_owner
-from src.tools.send_panel import build
-from src.tools.send_review_image import build as build_image_tool
 
 ORIGIN = "https://panel.example.test"
 POST = {"Origin": ORIGIN}
@@ -224,39 +222,21 @@ class PortalTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(await self.portal.accounts.login(username, old_password))
         self.assertTrue(await self.portal.accounts.login(username, "new-test-password"))
 
-    async def test_existing_random_user_gets_credentials_only_at_configured_umo(self):
+    async def test_delegated_chat_grants_do_not_override_bound_owner(self):
         game = self.engine.create({"user_binding": {"type": "random", "values": []}})
-        gid = game["id"]
-        owner = game["owner_id"]
         event = SimpleNamespace(
             unified_msg_origin="qq:FriendMessage:33333",
             get_sender_id=lambda: "33333",
             platform_meta=SimpleNamespace(name="qq"),
-            send=AsyncMock(),
         )
+        self.portal.accounts.bind_chat(game["id"], [event.unified_msg_origin])
+        # Keep legacy data, but it must no longer authorize another private chat.
+        self.assertEqual(self.portal.accounts.owner_for_umo(event.unified_msg_origin), game["owner_id"])
         with self.assertRaises(ValueError):
             chat_owner(self.portal.plugin, event)
-        with self.assertRaisesRegex(ValueError, "其他用户"):
-            self.portal.accounts.bind_chat(gid, ["qq:FriendMessage:11111"])
-        self.portal.accounts.bind_chat(gid, [event.unified_msg_origin])
-        self.assertEqual(chat_owner(self.portal.plugin, event), owner)
-        # The HTTP listener is already running under TestServer.
-        self.portal.runner = self.client.server
-        handler = build(self.portal.plugin).handler
-        result = await handler(event, "login")
-        message = event.send.await_args.args[0].chain[0].text
-        self.assertIn("首次密码", message)
-        self.assertNotIn(self.portal.accounts.username(owner), result)
-        self.assertNotIn("首次密码", result)
-        await handler(event, "login")
-        self.assertNotIn("首次密码：", event.send.await_args.args[0].chain[0].text)
-        image_result = await build_image_tool(self.portal.plugin).handler(event, "drawdown")
-        self.assertIn('"ok": true', image_result)
-        image = event.send.await_args.args[0].chain[0]
-        self.assertTrue(image.file.startswith("base64://"))
-        event.unified_msg_origin = "qq:GroupMessage:33333"
-        event.send.reset_mock()
-        await handler(event, "login")
-        event.send.assert_not_awaited()
-        self.portal.accounts.bind_chat(gid, [])
-        self.assertEqual(self.portal.accounts.username(owner), "")
+        event.unified_msg_origin = "qq:FriendMessage:11111"
+        event.get_sender_id = lambda: "11111"
+        self.assertEqual(chat_owner(self.portal.plugin, event), self.first["owner_id"])
+        event.unified_msg_origin = "qq:GroupMessage:11111"
+        with self.assertRaises(ValueError):
+            chat_owner(self.portal.plugin, event)
