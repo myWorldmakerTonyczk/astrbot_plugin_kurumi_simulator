@@ -65,6 +65,7 @@ class ReplayTests(unittest.IsolatedAsyncioTestCase):
             actor="system", position={"side": "buy", "pnl": "2.5"}, fee=.1,
         )
         data = dict(
+            text_panels={key:dict(title="交易日记",subtitle="2026-11-08",content="今天先等等呀\n" * 50) for key in ("diary", "text")},
             days=1, start=now - 86400, end=now, pair="EUR/USD", events=[
                 event, dict(time=now - 400, action="review", status="failed")
             ],

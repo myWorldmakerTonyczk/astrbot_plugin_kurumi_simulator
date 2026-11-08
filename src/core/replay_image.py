@@ -9,6 +9,8 @@ from zoneinfo import ZoneInfo
 from PIL import Image, ImageDraw, ImageFont
 
 CHARTS = {
+    "diary": ("交易日记", "Trading diary"),
+    "text": ("文字记录", "Notes"),
     "overview": ("账户表现总览", "Account performance overview"),
     "candles": ("K 线与成交", "Candles and fills"),
     "equity": ("账户净值", "Account equity"),
@@ -31,7 +33,7 @@ BLUE = "#315da4"
 CURVES = {"equity", "return", "drawdown", "realized", "fees"}
 ZONE = ZoneInfo("Asia/Shanghai")
 OVERVIEW_PANELS = ("equity", "return", "drawdown")
-WIDE_PANELS = {"candles", "activity"}
+WIDE_PANELS = {"candles", "activity", "diary", "text"}
 CHART_SIZE = (1120, 645)
 
 
@@ -82,6 +84,8 @@ def series(data, kind):
 def render_png(data, kind):
     if kind not in CHARTS:
         raise ValueError("图表类型无效")
+    if kind in {"diary", "text"}:
+        return render_text_png(data["text_panels"][kind])
     if kind == "overview":
         width, height = CHART_SIZE
         image = Image.new("RGB", (width, height * len(OVERVIEW_PANELS)), PAPER)
@@ -250,25 +254,57 @@ def render_chart_sheet(data, kinds):
         else:
             rows.append([panel])
 
-    chart_width, chart_height = CHART_SIZE
+    chart_width, _ = CHART_SIZE
     gap = 24
     columns = max(map(len, rows))
     width = chart_width * columns + gap * (columns - 1)
-    height = len(rows) * (chart_height + gap) + gap
-    sheet = Image.new("RGB", (width + 2 * gap, height), GRID)
-    for row_number, row in enumerate(rows):
-        top = gap + row_number * (chart_height + gap)
-        for column, kind in enumerate(row):
-            with Image.open(BytesIO(render_png(data, kind))) as chart:
+    rendered = {panel: Image.open(BytesIO(render_png(data, panel))).convert("RGB") for panel in panels}
+    try:
+        heights = [max(rendered[panel].height for panel in row) for row in rows]
+        sheet = Image.new("RGB", (width + 2 * gap, sum(heights) + gap * (len(rows) + 1)), GRID)
+        top = gap
+        for row, height in zip(rows, heights):
+            for column, kind in enumerate(row):
+                chart = rendered[kind]
                 if len(row) == 1 and columns == 2:
-                    # Keep the complete chart and center it in a full-width card.
-                    ImageDraw.Draw(sheet).rectangle(
-                        (gap, top, gap + width - 1, top + chart_height - 1), fill=PAPER,
-                    )
+                    ImageDraw.Draw(sheet).rectangle((gap, top, gap + width - 1, top + height - 1), fill=PAPER)
                     left = gap + (width - chart_width) // 2
                 else:
                     left = gap + column * (chart_width + gap)
                 sheet.paste(chart, (left, top))
+            top += height + gap
+        buffer = BytesIO()
+        sheet.save(buffer, format="PNG")
+        return buffer.getvalue()
+    finally:
+        for image in rendered.values():
+            image.close()
+
+
+def render_text_png(panel):
+    (heading, body, small), _ = fonts()
+    measure = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    lines = []
+    for paragraph in panel["content"].splitlines():
+        line = ""
+        for char in paragraph:
+            if measure.textlength(line + char, font=body) > 1024:
+                lines.append(line)
+                line = char
+            else:
+                line += char
+        if line or (lines and lines[-1]):
+            lines.append(line)
+    if len(lines) > 240:
+        lines = lines[:239] + ["……内容较长，请分段查看后续文字"]
+    height = max(320, 150 + len(lines) * 36 + 48)
+    image = Image.new("RGB", (1120, height), PAPER)
+    draw = ImageDraw.Draw(image)
+    draw.text((48, 28), panel["title"], font=heading, fill=INK)
+    draw.text((48, 82), panel.get("subtitle", ""), font=small, fill=MUTED)
+    draw.line((48, 120, 1072, 120), fill=GRID, width=2)
+    for index, line in enumerate(lines):
+        draw.text((48, 150 + index * 36), line, font=body, fill=INK)
     buffer = BytesIO()
-    sheet.save(buffer, format="PNG")
+    image.save(buffer, format="PNG")
     return buffer.getvalue()
