@@ -3,7 +3,7 @@
 from ._shared import USER_ID, build_tool, select_instance
 
 NAME = "kurumi_select_instance"
-DESCRIPTION = "选择当前私聊要操作的实例，同一用户多个盘时先选择，不能选择他人的盘。"
+DESCRIPTION = "选择当前会话有权限访问的实例；群聊和非绑定私聊须由管理员允许，多个实例时先查询列表。"
 PARAMETERS = {
     "type": "object",
     "properties": {

@@ -27,7 +27,8 @@ def build_tool(name, description, parameters, handler):
 
 
 def bound_game(plugin, event, user_id=""):
-    return plugin.identity.selected(event, user_id)
+    from ..users.tool_access import selected_in_call
+    return selected_in_call(plugin) or plugin.identity.selected(event, user_id)
 
 
 async def list_instances(plugin, event, user_id=""):

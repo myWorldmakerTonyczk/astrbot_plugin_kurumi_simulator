@@ -8,7 +8,7 @@ const policyFields = {
   allow_panel_notice: "允许在实例面板修改主动汇报",
   allow_tool_notice: "允许 AI 通过工具修改主动汇报",
 };
-const policyDefaults = {max_instances:0, allow_custom_interval:false, interval:3600, allow_panel_notice:true, allow_tool_notice:true};
+const policyDefaults = {allow_group_read:false, allow_group_trade:false, allow_foreign_read:false, allow_foreign_trade:false,max_instances:0, allow_custom_interval:false, interval:3600, allow_panel_notice:true, allow_tool_notice:true};
 
 function make(tag, text, cls) {
   const el = document.createElement(tag);
@@ -90,6 +90,37 @@ export class UserManager {
       addRow(rowLabel, role => noticeInputs[role][index]);
     });
     matrix.append(grid);
+    const sharing = make("div", null, "shared-tool-permissions");
+    for (const [role, title] of roles) {
+      const section = make("section");
+      section.dataset.role = role;
+      section.append(make("h4", title + " · 跨会话工具权限"));
+      const table = make("table");
+      const header = make("tr");
+      for (const text of ["使用场景", "查看信息", "交易操作"]) header.append(make("th", text));
+      table.append(header);
+      for (const [scope, label] of [["group", "群聊"], ["foreign", "其他用户的私聊"]]) {
+        const row = make("tr");
+        row.append(make("th", label));
+        for (const [kind, kindLabel] of [["read", "查看信息"], ["trade", "交易操作"]]) {
+          const key = "allow_" + scope + "_" + kind;
+          const cell = make("td");
+          const input = make("input");
+          input.type = "checkbox";
+          input.checked = profiles[role].policy?.[key] ?? false;
+          input.setAttribute("form", "workspace-mode-settings");
+          input.setAttribute("aria-label", title + " " + label + " " + kindLabel);
+          controls[role][key] = input;
+          cell.append(input);
+          row.append(cell);
+        }
+        table.append(row);
+      }
+      section.append(table);
+      sharing.append(section);
+    }
+    sharing.append(make("p", "权限按目标实例所属用户生效。开启后，该场景中的其他人也可访问对应实例；交易操作包含建平仓、保护线及计划修改。登录凭据仍只发给绑定私聊。", "caption"));
+    matrix.append(sharing);
     this.roleValues = () => Object.fromEntries(roles.map(([role]) => {
       const policy = Object.fromEntries(Object.entries(controls[role]).map(([key, input]) =>
         [key, input.type === "checkbox" ? input.checked : key === "interval" ? Math.round(Number(input.value) * 60) : Number(input.value)]));

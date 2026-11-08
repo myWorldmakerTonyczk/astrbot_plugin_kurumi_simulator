@@ -4,6 +4,10 @@ import json
 from ..notifications.settings import validate as notification_settings
 
 DEFAULTS = dict(
+    allow_group_read=False,
+    allow_group_trade=False,
+    allow_foreign_read=False,
+    allow_foreign_trade=False,
     allow_custom_interval=False,
     max_instances=0,
     interval=3600,
@@ -48,8 +52,9 @@ def effective(engine, game):
 
 
 def validate(values):
-    if not isinstance(values, dict) or set(values) != set(DEFAULTS):
+    if not isinstance(values, dict) or set(values) - set(DEFAULTS):
         raise ValueError("用户权限设置字段无效")
+    values = {**DEFAULTS, **values}
     if any(
         type(values[key]) is not bool
         for key in DEFAULTS
